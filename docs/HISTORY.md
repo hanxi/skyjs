@@ -245,3 +245,7 @@
 24. **Node 兼容层 NC0.7-2：gateserver 迁移最终落位**（2026-09-24）：`js/gateserver.js`
     迁至 `js/builtins/skyjs/gateserver.js`，保留旧全局注入与模块导出；Makefile、
     `snjs.c` 默认路径/嵌入查找同步更新。gate/socket 场景经网络环境复跑全绿。
+26. **Node 兼容层 NC0.7-4：fs 分层与 skyjs/fsx 入口**（2026-09-24）：`js/io.js`
+    迁为 `js/internal/fs-core.js` 并改用 `skynetcore.fs.*` 分组，新增
+    `js/builtins/skyjs/fsx.js` 作为稳定入口；旧 `globalThis.io` 注入保留到 NC0.8。
+    Makefile 字节码源、`snjs.c` 默认 `jsIo` 路径/嵌入查找同步更新。

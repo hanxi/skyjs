@@ -795,7 +795,7 @@ embedded_runtime_bc(const char *path, size_t *len) {
 		*len = snjs_bc_websocket_size;
 		return snjs_bc_websocket;
 	}
-	if (strcmp(path, "./js/io.js") == 0) {
+	if (strcmp(path, "./js/internal/fs-core.js") == 0) {
 		*len = snjs_bc_io_size;
 		return snjs_bc_io;
 	}
@@ -894,7 +894,7 @@ init_cb(struct snjs *l, struct skynet_context *ctx, const char * args, size_t sz
 		JS_SetPropertyStr(l->jsc, paths, "websocket",
 			JS_NewString(l->jsc, optstring(ctx, "jsWebsocket", "./js/websocket.js")));
 		JS_SetPropertyStr(l->jsc, paths, "io",
-			JS_NewString(l->jsc, optstring(ctx, "jsIo", "./js/io.js")));
+			JS_NewString(l->jsc, optstring(ctx, "jsIo", "./js/internal/fs-core.js")));
 		JS_SetPropertyStr(l->jsc, paths, "ioservice",
 			JS_NewString(l->jsc, optstring(ctx, "jsIoservice", "./js/ioservice.js")));
 		JS_SetPropertyStr(l->jsc, g, "__snjs_lazy_paths", paths);

@@ -1,13 +1,13 @@
-// skyjs synchronous file I/O bridge (Phase B).
-// Loaded by snjs (env key "jsIo", default "./js/io.js").
-// Wraps the C-layer skynetcore.io.* primitives with convenience sugar:
+// skyjs file I/O core (Phase B).
+// Shared by the legacy lazy global and the skyjs/fsx entry; wraps the
+// C-layer skynetcore.fs.* primitives with convenience sugar:
 //   - read_file / read_text_file / write_file / append_file (whole-file)
 //   - exists / stat / readdir / mkdir / remove / rename (metadata)
 //   - File class for streaming read/write/seek/tell/close
 (function () {
     "use strict";
 
-    const cio = skynetcore.io;
+    const cio = skynetcore.fs;
 
     // ---- data coercion helper ----
     // Accepts string | ArrayBuffer | TypedArray, returns ArrayBuffer.
@@ -175,7 +175,7 @@
         await ioCall("rename", oldPath, newPath);
     }
 
-    globalThis.io = {
+    const fsx = {
         readFile,
         readTextFile,
         writeFile,
@@ -199,4 +199,8 @@
         removeAsync,
         renameAsync,
     };
+    globalThis.io = fsx;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = fsx;
+    }
 })();

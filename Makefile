@@ -241,10 +241,10 @@ endif
 
 # embedded bytecode of js/skynet.js + js/socket.js + js/internal/crypt-core.js +
 # js/sockethelper.js + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/http.js +
-# js/websocket.js + js/io.js + js/ioservice.js: snjs loads these instead of
+# js/websocket.js + js/internal/fs-core.js + js/ioservice.js: snjs loads these instead of
 # parsing the sources per service. Regenerated whenever the sources or the
 # quickjs submodule move; never committed.
-build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/internal/crypt-core.js js/sockethelper.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/http.js js/websocket.js js/io.js js/ioservice.js | build
+build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/internal/crypt-core.js js/sockethelper.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/http.js js/websocket.js js/internal/fs-core.js js/ioservice.js | build
 	./build/qjsc -s -N snjs_bc_skynet -o build/bc_skynet.c js/skynet.js
 	./build/qjsc -s -N snjs_bc_socket -o build/bc_socket.c js/socket.js
 	./build/qjsc -s -N snjs_bc_crypt -o build/bc_crypt.c js/internal/crypt-core.js
@@ -253,7 +253,7 @@ build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/internal/crypt-core.js js
 	./build/qjsc -s -N snjs_bc_gateserver -o build/bc_gateserver.c js/builtins/skyjs/gateserver.js
 	./build/qjsc -s -N snjs_bc_http -o build/bc_http.c js/http.js
 	./build/qjsc -s -N snjs_bc_websocket -o build/bc_websocket.c js/websocket.js
-	./build/qjsc -s -N snjs_bc_io -o build/bc_io.c js/io.js
+	./build/qjsc -s -N snjs_bc_io -o build/bc_io.c js/internal/fs-core.js
 	./build/qjsc -s -N snjs_bc_ioservice -o build/bc_ioservice.c js/ioservice.js
 	cat build/bc_skynet.c build/bc_socket.c build/bc_crypt.c build/bc_sockethelper.c build/bc_cluster.c build/bc_gateserver.c build/bc_http.c build/bc_websocket.c build/bc_io.c build/bc_ioservice.c > $@
 
