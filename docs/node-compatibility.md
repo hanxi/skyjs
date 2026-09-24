@@ -1289,18 +1289,18 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 - 没有 `stream`、`events`、`Buffer`、`process`、定时器、`AbortSignal`/`AbortController`
   的独立库；`TextEncoder`/`TextDecoder` 只有 [js/skynet.js](../js/skynet.js) 里的
   最小 polyfill。
-- 加载器是 `snjs.c` 的 `lazy_setup_js` 固定表 + `__snjs_lazy_paths`：一个库对应一个
-  全局名，按需 `JS_Eval` 整段脚本。**没有模块包装器、没有 `require`、没有模块缓存、
-  没有 `node_modules` 解析。**
-- `worker_cb` 的 pending-job drain 只调用 `JS_ExecutePendingJob`，无法区分 nextTick
-  与 Promise microtask。
+- 加载器已完成 NC0.8 收口：`snjs.c` 的 `lazy_setup_js`/`__snjs_lazy_paths` 与逐库
+  字节码表已删除，C 侧只把 `js/loader.js` 当普通脚本装载，其余由 `js/bootstrap.js`
+  以 require 装配；`worker_cb` 的 pending-job drain 统一走 `internal/event-loop`
+  （nextTick → microtask → immediate → timer）。
 - 没有 `.fs`、`.subprocess` owner service，没有 `skynetcore.subprocess`，没有统一
   权限/配额层，没有插件宿主（`.pluginManager`）。
-- `skynetcore` 的 `runtime`/`fs`/`net`/`seri` 分组已随 NC0.3 落地；旧扁平名
-  在 NC0.8 收敛前继续双挂（`readFile`/`send`/`socket`/`pack` 仍在顶层）。
+- `skynetcore` 旧扁平名与旧全局注入（`io`/`httpd`/`httpc`/`httpInternal`/
+  `socket`/`sockethelper`/`websocket`/`crypt`/`cluster`/`gateserver`）已随 NC0.8
+  全部删除，只剩 `runtime`/`fs`/`net`/`netpack`/`seri`/`crypt`/`tls` 分组。
 - `skynet.features()` 已随 NC0.3 落地；能力表仍会随后续批次逐步填充。
-- 没有宿主级退出原语：`skynet.exit()` 等价于 retire 当前 service，无法实现 §4.1 的
-  `process.exit()`；`platform/main.c` 固定 `return 0`，没有退出码回传通道。
+- `process.exit()` 的宿主退出通道已随 NC0.5 落地（退出码经
+  `platform/runtime-exit.c` 回传）。
 
 与 §13 批次的对应关系：NC0 覆盖模块系统/事件循环/`process`/`Buffer`/定时器；
 NC1 覆盖纯 JS 模块与错误层；NC2 覆盖流与完整 `fs`；NC3 覆盖子进程；NC4 覆盖
