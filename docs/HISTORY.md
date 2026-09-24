@@ -249,3 +249,6 @@
     迁为 `js/internal/fs-core.js` 并改用 `skynetcore.fs.*` 分组，新增
     `js/builtins/skyjs/fsx.js` 作为稳定入口；旧 `globalThis.io` 注入保留到 NC0.8。
     Makefile 字节码源、`snjs.c` 默认 `jsIo` 路径/嵌入查找同步更新。
+27. **Node 兼容层 NC0.7-5：HTTP 内核过渡落位**（2026-09-24）：`js/http.js` 迁为
+    `js/internal/http-core.js`，保留 `httpd`/`httpc`/`httpInternal` 旧全局注入供
+    websocket/过渡调用；Makefile、`snjs.c` 默认 `jsHttp` 路径与嵌入查找同步更新。

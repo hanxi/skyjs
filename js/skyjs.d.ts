@@ -638,7 +638,7 @@ declare const sockethelper: {
 // console（log/info/debug/warn/error/trace/time/timeLog/timeEnd，全部映射
 // skynet 日志通道）由 JS 标准库类型覆盖，不在此重复声明。
 
-// --------------- httpd (js/http.js) ---------------
+// --------------- httpd (js/internal/http-core.js) ---------------
 
 /** HTTP 请求读取结果 */
 interface HttpdReadResult {
@@ -669,7 +669,7 @@ declare const httpd: {
     ): boolean;
 };
 
-// --------------- httpc (js/http.js) ---------------
+// --------------- httpc (js/internal/http-core.js) ---------------
 
 interface HttpcResponse {
     status: number;
@@ -755,7 +755,7 @@ declare const httpc: {
     closeAllKeepalive(): void;
 };
 
-// --------------- http_internal (js/http.js) ---------------
+// --------------- http_internal (js/internal/http-core.js) ---------------
 // 内部解析函数，供 websocket.js 复用 HTTP 升级握手的头解析。
 
 declare const httpInternal: {

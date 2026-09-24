@@ -1,8 +1,7 @@
 // skyjs HTTP server + client with Keep-Alive connection pool (Task 6).
-// Loaded by snjs after sockethelper.js (env key "jsHttp", default
-// "./js/http.js"). Provides globalThis.httpd (server), globalThis.httpc
-// (client), and globalThis.http_internal (internal parsing functions
-// exported for websocket.js to reuse).
+// Shared by the legacy lazy globals and the require-based facades. Provides
+// httpd (server), httpc (client), and the internal parsing functions reused
+// by websocket.js.
 //
 // Ported from 3rd/skynet/lualib/http/{internal,httpd,httpc,url}.lua.
 // Builds entirely on BufferedReader (js/sockethelper.js): readline() for
@@ -985,14 +984,10 @@
         connPool.clear();
     };
 
-    // ---------------------------------------- export to globalThis
+    // ---------------------------------------- exports
 
     globalThis.httpd = httpdObj;
     globalThis.httpc = httpcObj;
-
-    // Internal parsing functions exported for websocket.js to reuse.
-    // websocket.js needs recv_header and parse_header to handle the HTTP
-    // upgrade handshake. Access via globalThis.http_internal.
     globalThis.httpInternal = {
         recvHeader,
         parseHeader,
@@ -1000,4 +995,11 @@
         recvBody,
         httpStatusMsg,
     };
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = {
+            httpd: httpdObj,
+            httpc: httpcObj,
+            httpInternal: globalThis.httpInternal,
+        };
+    }
 })();
