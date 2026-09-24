@@ -67,6 +67,63 @@ interface ImmediateHandle {
     hasRef(): boolean;
 }
 
+interface SkyjsBuffer extends Uint8Array {
+    toString(encoding?: string, start?: number, end?: number): string;
+    write(string: string, offset?: number, length?: number, encoding?: string): number;
+    equals(other: Uint8Array): boolean;
+    compare(other: Uint8Array): number;
+    copy(target: Uint8Array, targetStart?: number, sourceStart?: number,
+        sourceEnd?: number): number;
+}
+
+interface SkyjsBufferConstructor {
+    new(value: number | string | ArrayBuffer | ArrayBufferView | number[],
+        encodingOrOffset?: string | number, length?: number): SkyjsBuffer;
+    from(value: number | string | ArrayBuffer | ArrayBufferView | number[],
+        encodingOrOffset?: string | number, length?: number): SkyjsBuffer;
+    alloc(size: number, fill?: unknown, encoding?: string): SkyjsBuffer;
+    allocUnsafe(size: number): SkyjsBuffer;
+    allocUnsafeSlow(size: number): SkyjsBuffer;
+    byteLength(value: string | ArrayBuffer | ArrayBufferView, encoding?: string): number;
+    isBuffer(value: unknown): value is SkyjsBuffer;
+    isEncoding(encoding: string): boolean;
+    compare(a: Uint8Array, b: Uint8Array): number;
+    concat(list: Uint8Array[], totalLength?: number): SkyjsBuffer;
+    readonly kMaxLength: number;
+    poolSize: number;
+}
+
+declare const Buffer: SkyjsBufferConstructor;
+
+declare class TextEncoder {
+    readonly encoding: string;
+    encode(input?: string): Uint8Array;
+    encodeInto(input: string, destination: Uint8Array): { read: number; written: number };
+}
+
+declare class TextDecoder {
+    readonly encoding: string;
+    constructor(label?: string);
+    decode(input?: ArrayBuffer | ArrayBufferView): string;
+}
+
+declare class AbortSignal {
+    readonly aborted: boolean;
+    readonly reason: unknown;
+    onabort: ((event: unknown) => void) | null;
+    throwIfAborted(): void;
+    addEventListener(type: string, listener: unknown): void;
+    removeEventListener(type: string, listener: unknown): void;
+    dispatchEvent(event: unknown): boolean;
+    static abort(reason?: unknown): AbortSignal;
+    static timeout(ms: number): AbortSignal;
+}
+
+declare class AbortController {
+    readonly signal: AbortSignal;
+    abort(reason?: unknown): void;
+}
+
 interface ProcessWriteStream {
     isTTY: false;
     write(chunk: string | Uint8Array, encoding?: string | (() => void),
@@ -836,3 +893,29 @@ declare const websocket: {
     /** 检查连接是否已关闭 */
     isClose(id: number): boolean;
 };
+
+// `events` is a Node builtin module; the loader resolves it to
+// js/builtins/events.js (module shape declared below).
+declare module "events" {
+    class EventEmitter {
+        static listenerCount(emitter: EventEmitter, event: string | symbol): number;
+        static getEventListeners(emitter: EventEmitter, event: string | symbol): Array<(...args: unknown[]) => void>;
+        static defaultMaxListeners: number;
+        addListener(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        on(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        once(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        prependListener(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        prependOnceListener(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        removeListener(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        off(event: string | symbol, listener: (...args: unknown[]) => void): this;
+        removeAllListeners(event?: string | symbol): this;
+        setMaxListeners(n: number): this;
+        getMaxListeners(): number;
+        listeners(event: string | symbol): Array<(...args: unknown[]) => void>;
+        rawListeners(event: string | symbol): Array<(...args: unknown[]) => void>;
+        listenerCount(event: string | symbol): number;
+        eventNames(): Array<string | symbol>;
+        emit(event: string | symbol, ...args: unknown[]): boolean;
+    }
+    export = { EventEmitter };
+}

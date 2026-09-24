@@ -7,6 +7,9 @@
 const { register } = require("./internal/module-registry.js");
 const eventLoop = require("./internal/event-loop.js");
 const processModule = require("./internal/process.js");
+const textCodec = require("./internal/text-codec.js");
+const abort = require("./internal/abort.js");
+const bufferCore = require("./internal/buffer-core.js");
 
 function assertReadyGlobal(name) {
     if (typeof globalThis[name] === "undefined") {
@@ -18,13 +21,28 @@ function runMain(moduleSystem, entry, param) {
     register(moduleSystem);
     eventLoop.install();
     processModule.install();
+    abort.install();
     globalThis.global = globalThis;
     globalThis.snjsParam = param;
     globalThis.__snjs_event_loop_tick = eventLoop.tick;
+    if (typeof globalThis.TextEncoder === "undefined") {
+        globalThis.TextEncoder = textCodec.TextEncoder;
+    }
+    if (typeof globalThis.TextDecoder === "undefined") {
+        globalThis.TextDecoder = textCodec.TextDecoder;
+    }
+    if (typeof globalThis.Buffer === "undefined") {
+        globalThis.Buffer = bufferCore.Buffer;
+    }
+    const consoleObject = require("./builtins/console.js");
+    globalThis.console = consoleObject;
     assertReadyGlobal("console");
     assertReadyGlobal("skynet");
     assertReadyGlobal("TextEncoder");
     assertReadyGlobal("TextDecoder");
+    assertReadyGlobal("Buffer");
+    assertReadyGlobal("AbortController");
+    assertReadyGlobal("AbortSignal");
     assertReadyGlobal("setTimeout");
     assertReadyGlobal("setImmediate");
     return moduleSystem.runMain(entry);

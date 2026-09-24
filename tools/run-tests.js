@@ -66,6 +66,8 @@ const SUITE = [
         must: ["PROCESS_EXIT_START"], expectExit: 3 },
     { name: "process_natural", config: "test/config-process-natural.json",
         must: ["PROCESS_NATURAL_START"], expectExit: 7 },
+    { name: "globals", config: "test/config-globals.json",
+        must: ["GLOBALS_OK events=1 buffer=1 abort=1"] },
     { name: "echo", config: "test/config-echo.json",
         must: ["DRIVER RESP: JS_ECHO:hello_from_js"] },
     { name: "async", config: "test/config-async.json",

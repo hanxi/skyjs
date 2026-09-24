@@ -73,6 +73,10 @@ NC0.4 起 `internal/event-loop.js` 是唯一 tick 入口：C 侧 worker 边界�
 NC0.5 起 `process` 对象由 `internal/process.js` 装配；宿主退出码槽位在
 `platform/runtime-exit.c`，`snjs.so` 的 `skynetcore.runtime.exit/exitCode` 写入后由
 `platform/main.c` 在 `skynet_start()` 返回时读取。
+NC0.6 起 `require('events')` 由 `js/builtins/events.js` 提供；`Buffer`、
+`console`、`AbortController`/`AbortSignal` 与 `TextEncoder`/`TextDecoder` 的内核分别
+在 `js/internal/buffer-core.js`/`js/builtins/console.js`/`js/internal/abort.js`/
+`js/internal/text-codec.js`，由 `js/bootstrap.js` 装配为全局。
 
 JS 侧加载顺序（env 键 `jsLoader` → `jsSocket` → `jsCluster` → `jsGateserver` → 用户脚本）：
 `js/skynet.js` 定义 `globalThis.skynet` 与内部路由；`socket.js`/`cluster.js`/`gateserver.js`

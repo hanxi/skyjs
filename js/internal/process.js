@@ -83,7 +83,11 @@ class ProcessWriteStream {
 function installProcessObject() {
     const info = skynetcore.runtime.info();
     const argv = skynetcore.runtime.argv();
-    const env = skynetcore.runtime.environ();
+    const env = {};
+    const sourceEnv = skynetcore.runtime.environ();
+    for (const key of Object.keys(sourceEnv)) {
+        env[key] = String(sourceEnv[key]);
+    }
     const processObj = globalThis.process || {};
 
     processObj.version = "v20.0.0";

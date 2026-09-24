@@ -229,3 +229,12 @@
     `platform/main.c` 在 `skynet_start()` 返回后读取槽位。`tools/run-tests.js`
     增加子进程退出码校验；新增 process-exit（exit(3)）与 process-natural
     （exitCode=7 后自然关停）验收。
+22. **Node 兼容层 NC0.6：events / Buffer / abort / text-codec / console**（2026-09-24）：
+    新增 `js/builtins/events.js`（EventEmitter 基础语义，经内建表提供
+    `require('events')`）、`js/internal/buffer-core.js`（Buffer 构造/编码/安全分配，
+    `allocUnsafe` 零初始化）、`js/internal/abort.js`（AbortController/AbortSignal
+    WHATWG 子集）与 `js/internal/text-codec.js`（TextEncoder/TextDecoder 迁出
+    polyfill）；`js/builtins/console.js` 承接原 skynet.js console 格式化/计时实现。
+    `js/bootstrap.js` 装配 Buffer/console/AbortController/AbortSignal/TextEncoder/
+    TextDecoder 全局。新增 `test/unit/` 的 events/buffer/abort/text-codec 用例与
+    globals 场景（全局清单存在性 + 非清单全局不占名）。
