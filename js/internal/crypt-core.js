@@ -1,8 +1,7 @@
-// skyjs crypt bridge (Task 4 — crypto wrapper layer).
-// Loaded by snjs after socket.js and before sockethelper.js (env key
-// "jsCrypt", default "./js/crypt.js"). Wraps skynetcore.crypt (pure-C
-// hash/DES/DH/base64/hex, see js-crypto.c) into globalThis.crypt with
-// auto String→ArrayBuffer coercion and graceful OpenSSL detection.
+// skyjs crypt core (Task 4 — crypto wrapper layer).
+// Shared by the legacy lazy global and require('skyjs/crypt'); wraps
+// skynetcore.crypt (pure-C hash/DES/DH/base64/hex, see js-crypto.c) with
+// String→ArrayBuffer coercion and graceful OpenSSL detection.
 (function () {
     "use strict";
 
@@ -41,7 +40,7 @@
 
     // -------------------------------------------- public crypt object
 
-    globalThis.crypt = {
+    const crypt = {
         padding,
 
         // ---- Hash --------------------------------------------------
@@ -164,4 +163,8 @@
             return cc.dhSecret(toAb(x), toAb(y));
         },
     };
+    globalThis.crypt = crypt;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = crypt;
+    }
 })();
