@@ -238,3 +238,7 @@
     `js/bootstrap.js` 装配 Buffer/console/AbortController/AbortSignal/TextEncoder/
     TextDecoder 全局。新增 `test/unit/` 的 events/buffer/abort/text-codec 用例与
     globals 场景（全局清单存在性 + 非清单全局不占名）。
+23. **Node 兼容层 NC0.7-1：cluster 迁移最终落位**（2026-09-24）：`js/cluster.js`
+    迁至 `js/builtins/skyjs/cluster.js`，保留旧全局注入以便 lazy loader 过渡；
+    `Makefile` 的内嵌字节码源、`snjs.c` 默认 `jsCluster` 路径与嵌入查找同步更新。
+    cluster/cluster_fail 验收经网络环境复跑全绿。

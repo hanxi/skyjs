@@ -2,6 +2,9 @@
 // cluster: frames are built by cservice/skyclusterd.so, lua-seri payloads are
 // produced/consumed here with skynet.pack/unpack.
 //
+// NC0.7 transition: this is a CJS module installed by the legacy lazy loader
+// via js/skynet.js; it is also the require('skyjs/cluster') internal entry.
+//
 // Usage:
 //   cluster.init()                       locate ".clusterd" (must be launched)
 //   cluster.setNodes({ n1: "ip:port" })  declare remote node addresses
@@ -73,7 +76,7 @@
         return addr.charCodeAt(0) === 64 ? addr : "@" + addr;
     }
 
-    globalThis.cluster = {
+    const cluster = {
         init,
         setNodes(obj) {
             for (const k in obj) {
@@ -144,4 +147,8 @@
             });
         },
     };
+    globalThis.cluster = cluster;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = cluster;
+    }
 })();

@@ -11,7 +11,7 @@
 // Every await waits on an external event (response/timer), so the pending-job
 // queue always drains before the C dispatch returns the worker thread.
 //
-// Structure note: like socket.js/cluster.js, everything lives in an IIFE; only
+// Structure note: like socket.js/skyjs cluster.js, everything lives in an IIFE; only
 // globalThis.skynet and the __snjs_* C-layer contracts are global.
 
 // TextEncoder/TextDecoder polyfill. The QuickJS-ng runtime used by snjs does
@@ -232,7 +232,7 @@
     // socket events come pre-parsed as {type, id, ud, data} objects (snjs.c);
     // js/socket.js installs the actual handler via __snjs_set_socket_handler.
     globalThis.__snjs_set_socket_handler = function (fn) { socketHandler = fn; };
-    // js/cluster.js installs handlers for responses that don't belong to skynet.call
+    // builtins/skyjs/cluster.js installs handlers for responses that don't belong to skynet.call
     // (cluster.call bookkeeping): (session, payload) and (session, source)
     globalThis.__snjs_set_cluster_handlers = function (resp, err) {
         clusterRespHandler = resp;
