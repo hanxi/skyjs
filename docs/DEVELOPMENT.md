@@ -70,6 +70,9 @@ errorResponse / pack / unpack / str` 与旧 `io`/`socket` 别名在 NC0.8 收敛
 NC0.4 起 `internal/event-loop.js` 是唯一 tick 入口：C 侧 worker 边界调用它，
 顺序固定为 nextTick/microtask → immediate → 到期 timer；定时器经 `TIMEOUT(0)`
 自唤醒，`process.nextTick` 由独立队列先于 Promise microtask 排空。
+NC0.5 起 `process` 对象由 `internal/process.js` 装配；宿主退出码槽位在
+`platform/runtime-exit.c`，`snjs.so` 的 `skynetcore.runtime.exit/exitCode` 写入后由
+`platform/main.c` 在 `skynet_start()` 返回时读取。
 
 JS 侧加载顺序（env 键 `jsLoader` → `jsSocket` → `jsCluster` → `jsGateserver` → 用户脚本）：
 `js/skynet.js` 定义 `globalThis.skynet` 与内部路由；`socket.js`/`cluster.js`/`gateserver.js`

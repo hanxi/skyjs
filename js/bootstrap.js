@@ -6,6 +6,7 @@
 
 const { register } = require("./internal/module-registry.js");
 const eventLoop = require("./internal/event-loop.js");
+const processModule = require("./internal/process.js");
 
 function assertReadyGlobal(name) {
     if (typeof globalThis[name] === "undefined") {
@@ -16,6 +17,7 @@ function assertReadyGlobal(name) {
 function runMain(moduleSystem, entry, param) {
     register(moduleSystem);
     eventLoop.install();
+    processModule.install();
     globalThis.global = globalThis;
     globalThis.snjsParam = param;
     globalThis.__snjs_event_loop_tick = eventLoop.tick;

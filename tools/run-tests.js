@@ -62,6 +62,10 @@ const SUITE = [
         must: ["SKYNETCORE_GROUPS_OK fs=1 net=1 seri=1 features=1"] },
     { name: "timers", config: "test/config-timers.json",
         mustRe: [/TIMERS_OK order=[^ ]+/] },
+    { name: "process_exit", config: "test/config-process-exit.json",
+        must: ["PROCESS_EXIT_START"], expectExit: 3 },
+    { name: "process_natural", config: "test/config-process-natural.json",
+        must: ["PROCESS_NATURAL_START"], expectExit: 7 },
     { name: "echo", config: "test/config-echo.json",
         must: ["DRIVER RESP: JS_ECHO:hello_from_js"] },
     { name: "async", config: "test/config-async.json",
@@ -126,7 +130,7 @@ function watchLines(child, onLine) {
             readline.createInterface({ input: st }).on("line", onLine);
             st.on("end", () => { if (--open === 0) resolve(); });
         }
-        child.on("close", () => resolve());
+        child.on("exit", () => resolve());
     });
     return done;
 }
@@ -134,38 +138,16 @@ function watchLines(child, onLine) {
 /* --------------------------------------------------------- scenario runner */
 
 // watch an already-running child for must/never markers; returns { ok, why, log }
-function watchMarkers(child, must, never, timeoutMs, mustRe) {
+function watchMarkers(child, must, never, timeoutMs, mustRe, expectExit) {
     return new Promise((resolve) => {
         const pending = new Set(must);
         const lines = [];
         let bad = null;
-        const timer = setTimeout(() => {
-            bad = "timeout after " + timeoutMs + "ms; missing: [" +
-                [...pending].join("; ") + "]";
-            killTree(child);
-        }, timeoutMs);
+        let settled = false;
 
-        watchLines(child, (line) => {
-            if (lines.length < 400) lines.push(line);
-            if (bad) return;
-            for (const n of never) {
-                if (line.includes(n)) {
-                    bad = "forbidden marker: " + n;
-                    killTree(child);
-                    return;
-                }
-            }
-            for (const m of [...pending]) {
-                if (line.includes(m)) pending.delete(m);
-            }
-            for (const re of mustRe) {
-                if (re.test(line)) pending.delete(String(re));
-            }
-            if (pending.size === 0) {
-                clearTimeout(timer);
-                killTree(child);
-            }
-        }).then(() => {
+        const finish = () => {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
             if (bad) return resolve({ ok: false, why: bad, log: lines });
             if (child.signalCode === "SIGSEGV" || child.signalCode === "SIGBUS" ||
@@ -176,15 +158,51 @@ function watchMarkers(child, must, never, timeoutMs, mustRe) {
                 return resolve({ ok: false, why: "exit before markers; missing: [" +
                     [...pending].join("; ") + "]", log: lines });
             }
+            if (expectExit !== undefined && child.exitCode !== expectExit) {
+                return resolve({ ok: false, why: "expected exit code " + expectExit +
+                    ", got " + child.exitCode + " (signal " + child.signalCode + ")",
+                    log: lines });
+            }
             resolve({ ok: true, why: "", log: lines });
+        };
+
+        const timer = setTimeout(() => {
+            bad = "timeout after " + timeoutMs + "ms; missing: [" +
+                [...pending].join("; ") + "]";
+            killTree(child);
+            finish();
+        }, timeoutMs);
+
+        watchLines(child, (line) => {
+            if (lines.length < 400) lines.push(line);
+            if (bad) return;
+            for (const n of never) {
+                if (line.includes(n)) {
+                    bad = "forbidden marker: " + n;
+                    killTree(child);
+                    finish();
+                    return;
+                }
+            }
+            for (const m of [...pending]) {
+                if (line.includes(m)) pending.delete(m);
+            }
+            for (const re of mustRe) {
+                if (re.test(line)) pending.delete(String(re));
+            }
+            if (pending.size === 0 && expectExit === undefined) {
+                killTree(child);
+                finish();
+            }
         });
+        child.on("close", finish);
     });
 }
 
 // launch one ./skyjs <config> and wait for markers; returns { ok, why, log }
-function runConfig(cfg, must, never, timeoutMs, mustRe) {
+function runConfig(cfg, must, never, timeoutMs, mustRe, expectExit) {
     const child = spawn(BIN, [cfg], { cwd: ROOT });
-    return watchMarkers(child, must, never, timeoutMs, mustRe);
+    return watchMarkers(child, must, never, timeoutMs, mustRe, expectExit);
 }
 
 /* ---------------------------------------------------- special: lua-seri */
@@ -358,7 +376,8 @@ async function main() {
             const timeoutMs = c.timeoutMs || opts.timeoutMs;
             const r = c.special
                 ? await c.special(c.config, never, timeoutMs)
-                : await runConfig(c.config, c.must || [], never, timeoutMs, c.mustRe || []);
+                : await runConfig(c.config, c.must || [], never, timeoutMs, c.mustRe || [],
+                    c.expectExit);
             const ms = ((Date.now() - t0) / 1000).toFixed(1);
             const tag = r.ok ? "PASS" : "FAIL";
             log(tag.padEnd(5) + c.name.padEnd(12) + ms.padStart(6) + "s" +

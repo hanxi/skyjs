@@ -6,6 +6,8 @@
 
 #include "quickjs.h"
 
+int skyjs_runtime_get_exit_code(void);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -201,5 +203,5 @@ main(int argc, char *argv[]) {
 	skynet_start(&config);
 	skynet_globalexit();
 
-	return 0;
+	return skyjs_runtime_get_exit_code();
 }

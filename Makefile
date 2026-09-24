@@ -118,7 +118,7 @@ SKYNET_SRC := skynet_handle.c skynet_module.c skynet_mq.c skynet_server.c \
   skynet_socket.c socket_server.c mem_info.c malloc_hook.c skynet_daemon.c skynet_log.c
 
 SKYNET_OBJ := $(addprefix build/skynet_,$(SKYNET_SRC:.c=.o))
-PLATFORM_OBJ := build/env.o build/main.o build/lua-stub.o
+PLATFORM_OBJ := build/env.o build/main.o build/lua-stub.o build/runtime-exit.o
 
 # quickjs-ng core (linked into the main skyjs executable; .so modules resolve symbols at runtime)
 QJS_SRC := 3rd/quickjs/quickjs.c 3rd/quickjs/libregexp.c 3rd/quickjs/libunicode.c 3rd/quickjs/dtoa.c

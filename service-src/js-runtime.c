@@ -4,11 +4,13 @@
  * This file owns the runtime capability namespace only. Other flat
  * skynetcore names are still registered by snjs.c during the NC0 transition;
  * grouping them into fs/net/seri happens in NC0.3.
+ *
+ * The process exit-code slot itself lives in platform/runtime-exit.c, linked
+ * into both the host executable and cservice/snjs.so.
  */
 
 #include "skynet.h"
 #include "skynet_server.h"
-#include "atomic.h"
 #include "snjs-internal.h"
 
 #include <quickjs.h>
@@ -34,20 +36,15 @@ extern char **environ;
 #define MAX_MODULE_ID 512
 #define MAX_MODULE_PATH 4096
 
-static ATOM_INT runtime_exit_code;
-static ATOM_INT runtime_exit_code_set;
 static struct timespec runtime_start;
+
+void skyjs_runtime_set_exit_code(int code);
+int skyjs_runtime_get_exit_code(void);
 
 __attribute__((constructor))
 static void
 runtime_init_start(void) {
     clock_gettime(CLOCK_MONOTONIC, &runtime_start);
-}
-
-MODAPI int
-skyjs_runtime_exit_code(void) {
-    if (!ATOM_LOAD(&runtime_exit_code_set)) return 0;
-    return ATOM_LOAD(&runtime_exit_code);
 }
 
 static struct snjs *
@@ -174,19 +171,24 @@ js_runtime_exit(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *a
     (void)this_val;
     int32_t code = 0;
     if (argc > 0 && JS_ToInt32(ctx, &code, argv[0])) return JS_EXCEPTION;
-    ATOM_STORE(&runtime_exit_code, code);
-    ATOM_STORE(&runtime_exit_code_set, 1);
+    skyjs_runtime_set_exit_code(code);
     skynet_command(l->ctx, "ABORT", NULL);
-    return JS_UNDEFINED;
+    JSValue err = JS_NewError(ctx);
+    JS_SetPropertyStr(ctx, err, "message",
+        JS_NewString(ctx, "process.exit"));
+    JS_SetPropertyStr(ctx, err, "code",
+        JS_NewString(ctx, "__skyjsProcessExit"));
+    JS_SetPropertyStr(ctx, err, "exitCode", JS_NewInt32(ctx, code));
+    return JS_Throw(ctx, err);
 }
+
 
 static JSValue
 js_runtime_exit_code(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     int32_t code = 0;
     if (argc > 0 && JS_ToInt32(ctx, &code, argv[0])) return JS_EXCEPTION;
-    ATOM_STORE(&runtime_exit_code, code);
-    ATOM_STORE(&runtime_exit_code_set, 1);
+    skyjs_runtime_set_exit_code(code);
     return JS_UNDEFINED;
 }
 

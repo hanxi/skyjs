@@ -220,3 +220,12 @@
     `snjs.c` 的 worker 边界统一调用 event loop，pending-job drain 收敛为共享 helper；
     `js/bootstrap.js` 安装全局并注入内部 tick/drain 钩子。新增 timers 场景覆盖纯
     定时器自推进、immediate 先于 timeout(0)、nextTick/microtask/timer 顺序。
+21. **Node 兼容层 NC0.5：process 核心与宿主退出**（2026-09-24）：新增
+    `js/internal/process.js`，按 §4.5 装配 process 成员：版本/平台/pid/argv/env/
+    cwd（Actor 局部，`/`）/exit/exitCode/hrtime/memoryUsage/uptime/stdout/stderr
+    （`isTTY=false` 最小可写实现），`stdin=null`、`chdir()` 抛
+    `ERR_UNSUPPORTED_PLATFORM`。退出码槽位移到 `platform/runtime-exit.c`，由宿主与
+    `snjs.so` 共享；`js-runtime.c` 的 exit 写槽位后 `ABORT` 并抛内部哨兵，
+    `platform/main.c` 在 `skynet_start()` 返回后读取槽位。`tools/run-tests.js`
+    增加子进程退出码校验；新增 process-exit（exit(3)）与 process-natural
+    （exitCode=7 后自然关停）验收。

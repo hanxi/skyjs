@@ -67,8 +67,39 @@ interface ImmediateHandle {
     hasRef(): boolean;
 }
 
+interface ProcessWriteStream {
+    isTTY: false;
+    write(chunk: string | Uint8Array, encoding?: string | (() => void),
+        callback?: () => void): boolean;
+    on(event: string, listener: (...args: unknown[]) => void): this;
+    once(event: string, listener: (...args: unknown[]) => void): this;
+    off(event: string, listener: (...args: unknown[]) => void): this;
+    removeListener(event: string, listener: (...args: unknown[]) => void): this;
+    emit(event: string, ...args: unknown[]): boolean;
+}
+
 interface ProcessShim {
+    version: string;
+    versions: { node: string; skyjs: string; quickjs: string };
+    platform: string;
+    arch: string;
+    pid: number;
+    ppid: number;
+    argv: string[];
+    argv0: string;
+    execPath: string;
+    env: Record<string, string>;
+    cwd(): string;
+    chdir(path: string): void;
+    exit(code?: number): never;
+    exitCode: number;
     nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void;
+    hrtime(previous?: [number, number]): [number, number];
+    memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number };
+    uptime(): number;
+    stdout: ProcessWriteStream;
+    stderr: ProcessWriteStream;
+    stdin: null;
 }
 
 declare const process: ProcessShim;
