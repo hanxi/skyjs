@@ -5,6 +5,8 @@
 // off. Case names are pair-agnostic (cl_100 / cl_40k); the harness renames
 // them per pair (cl_jsjs_*, cl_lualua_*, cl_mixed_*). Lockstep with
 // test/bench-lua/cluster-main-a.lua.
+const cluster = require("../../js/builtins/skyjs/cluster.js");
+
 skynet.register("main");
 skynet.newservice("skyclusterd");
 cluster.init();
@@ -24,17 +26,17 @@ const CASES = [
 ];
 
 function mark(name) {
-    skynetcore.error("BENCH_BEGIN " + name);
+    skynetcore.runtime.error("BENCH_BEGIN " + name);
 }
 
 function unmark(name) {
-    skynetcore.error("BENCH_END " + name);
+    skynetcore.runtime.error("BENCH_END " + name);
 }
 
 function report(name, n, t0) {
     const dt = Date.now() - t0;
     const mps = dt > 0 ? Math.round(n * 1000 / dt) : 0;
-    skynetcore.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
+    skynetcore.runtime.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
 }
 
 async function runCase(peer, c) {
@@ -71,18 +73,18 @@ skynet.start(() => {
             // then the harness) knows both streams are complete
             return (async () => {
                 await runDirection("a");
-                skynetcore.error("BENCH_SUITE_DONE");
+                skynetcore.runtime.error("BENCH_SUITE_DONE");
                 return skynet.pack("ctl-done");
             })();
         }
         return skynet.pack(...vals);
     });
     (async () => {
-        skynetcore.error("BENCH_CLUSTER_READY");
+        skynetcore.runtime.error("BENCH_CLUSTER_READY");
         await runDirection("b");
         await cluster.call("b", "@bench", "__ctl_run");
-        skynetcore.error("BENCH_SUITE_DONE");
+        skynetcore.runtime.error("BENCH_SUITE_DONE");
     })().catch(e => {
-        skynetcore.error("BENCH_FAIL: " + (e && (e.message || e)));
+        skynetcore.runtime.error("BENCH_FAIL: " + (e && (e.message || e)));
     });
 });

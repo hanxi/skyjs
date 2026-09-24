@@ -458,7 +458,6 @@ void register_io_bridge(JSContext *ctx, JSValue global) {
 	JS_SetPropertyStr(ctx, io, "ftell", JS_NewCFunction(ctx, js_io_ftell, "ftell", 1));
 	JS_SetPropertyStr(ctx, io, "fclose", JS_NewCFunction(ctx, js_io_fclose, "fclose", 1));
 
-	JS_SetPropertyStr(ctx, skynetcore, "io", JS_DupValue(ctx, io));
 	JS_SetPropertyStr(ctx, skynetcore, "fs", io);
 	JS_FreeValue(ctx, skynetcore);
 }

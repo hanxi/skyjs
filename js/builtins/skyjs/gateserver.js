@@ -4,7 +4,7 @@
 //
 // Loaded by snjs after cluster.js (env key "jsGateserver", default
 // "./js/gateserver.js"). A gate service calls gateserver.start(handler), which
-// switches the service into netpack mode (skynetcore.socket.netpackMode) and
+// switches the service into netpack mode (skynetcore.net.netpackMode) and
 // installs the socket event handler; the C worker_cb then routes PTYPE_SOCKET
 // DATA through the frame buffer and delivers {np, event, id, ud, data} objects.
 //
@@ -14,8 +14,11 @@
 (function () {
     "use strict";
 
-    const sock = skynetcore.socket;
-    const netpack = skynetcore.netpack;
+    const hooks = require("../../internal/runtime-hooks.js");
+
+    const core = globalThis.skynetcore;
+    const net = require("../../internal/net-core.js");
+    const netpack = core.netpack;
 
     let listenSocket = 0;
     let maxclient = 1024;
@@ -30,7 +33,7 @@
         if (connection.get(fd)) {
             userHandler.message(fd, msg);
         } else {
-            skynetcore.error("gateserver drop message from fd " + fd);
+            core.runtime.error("gateserver drop message from fd " + fd);
         }
     }
 
@@ -52,11 +55,11 @@
             case "open":
                 // ACCEPT: m.id is the newly accepted connection fd
                 if (clientNumber >= maxclient) {
-                    sock.shutdown(m.id);
+                    core.net.shutdown(m.id);
                     return;
                 }
                 clientNumber += 1;
-                if (useNodelay) sock.nodelay(m.id);
+                if (useNodelay) core.net.nodelay(m.id);
                 connection.set(m.id, true);
                 userHandler.connect(m.id, m.data);
                 break;
@@ -71,9 +74,9 @@
                 break;
             case "error":
                 if (m.id === listenSocket) {
-                    skynetcore.error("gateserver accept error: " + m.data);
+                    core.runtime.error("gateserver accept error: " + m.data);
                 } else {
-                    sock.shutdown(m.id);
+                    core.net.shutdown(m.id);
                     if (userHandler.error) userHandler.error(m.id, m.data);
                 }
                 break;
@@ -89,25 +92,25 @@
     const gateserver = {
         // start reading an accepted connection (after forward/accept)
         openclient(fd) {
-            if (connection.get(fd)) sock.start(fd | 0);
+            if (connection.get(fd)) net.resume(fd | 0);
         },
         closeclient(fd) {
             if (connection.has(fd)) {
                 connection.delete(fd);
-                sock.close(fd | 0);
+                net.close(fd | 0);
             }
         },
         // create and start the listen socket; returns the listen fd
         open(host, port, backlog, maxClient, nodelay) {
             maxclient = maxClient || 1024;
             useNodelay = !!nodelay;
-            listenSocket = sock.listen(String(host || "0.0.0.0"), port | 0, backlog || 64);
-            skynetcore.error("gateserver listen port " + port + " -> id " + listenSocket);
-            if (listenSocket >= 0) sock.start(listenSocket | 0);
+            listenSocket = net.listen(String(host || "0.0.0.0"), port | 0, backlog || 64);
+            core.runtime.error("gateserver listen port " + port + " -> id " + listenSocket);
+            if (listenSocket >= 0) net.resume(listenSocket | 0);
             return listenSocket;
         },
         close() {
-            if (listenSocket) sock.close(listenSocket | 0);
+            if (listenSocket) net.close(listenSocket | 0);
         },
         // install handler + switch this service into netpack mode
         start(handler) {
@@ -116,12 +119,9 @@
                 throw new Error("gateserver.start: handler.message and handler.connect are required");
             }
             userHandler = handler;
-            sock.netpackMode();
-            __snjs_set_socket_handler(onSocket);
+            core.net.netpackMode();
+            hooks.setSocketHandler(onSocket);
         },
     };
-    globalThis.gateserver = gateserver;
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = gateserver;
-    }
+    module.exports = gateserver;
 })();

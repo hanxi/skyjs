@@ -2,6 +2,8 @@
 // All test artefacts go into build/io_test/ and are cleaned up at the end.
 "use strict";
 
+const io = require("../../js/internal/fs-core.js");
+
 const TEST_DIR = "build/io_test";
 
 let failCount = 0;
@@ -161,12 +163,12 @@ skynet.timeout(1, async () => {
             const pos = fR.tell();
             check("file_tell", pos === 2, "pos=" + pos);
             const chunk = fR.read(4);
-            const chunkStr = skynetcore.str(chunk);
+            const chunkStr = skynetcore.seri.str(chunk);
             check("file_seek_read", chunkStr === "CDEF",
                 "got=" + JSON.stringify(chunkStr));
             // read remaining => "GH"
             const rest = fR.read(2);
-            const restStr = skynetcore.str(rest);
+            const restStr = skynetcore.seri.str(rest);
             check("file_read_rest", restStr === "GH",
                 "got=" + JSON.stringify(restStr));
             fR.close();

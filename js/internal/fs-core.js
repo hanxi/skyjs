@@ -8,6 +8,8 @@
     "use strict";
 
     const cio = skynetcore.fs;
+    const crypt = require("./crypt-core.js");
+    const skynetCore = require("./skynet-core.js");
 
     // ---- data coercion helper ----
     // Accepts string | ArrayBuffer | TypedArray, returns ArrayBuffer.
@@ -25,7 +27,7 @@
     }
 
     function readTextFile(path) {
-        return skynetcore.str(cio.readFile(path));
+        return skynetcore.seri.str(cio.readFile(path));
     }
 
     function writeFile(path, data) {
@@ -121,15 +123,15 @@
 
     async function ensureIoService() {
         if (ioSvc !== 0) return ioSvc;
-        ioSvc = skynet.newservice("snjs js/ioservice.js");
+        ioSvc = skynetCore.newservice("snjs js/ioservice.js");
         return ioSvc;
     }
 
     // helper: call ioservice, unpack response, throw on failure
     async function ioCall(...packArgs) {
         const svc = await ensureIoService();
-        const resp = await skynet.call(svc, "lua", skynet.pack(...packArgs));
-        const vals = skynet.unpack(resp);
+        const resp = await skynetCore.call(svc, "lua", skynetCore.pack(...packArgs));
+        const vals = skynetCore.unpack(resp);
         if (!vals[0]) throw new Error(vals[1] || "ioservice error");
         return vals[1];   // may be undefined for void ops
     }
@@ -199,8 +201,5 @@
         removeAsync,
         renameAsync,
     };
-    globalThis.io = fsx;
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = fsx;
-    }
+    module.exports = fsx;
 })();

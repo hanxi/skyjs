@@ -163,8 +163,5 @@
             return cc.dhSecret(toAb(x), toAb(y));
         },
     };
-    globalThis.crypt = crypt;
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = crypt;
-    }
+    module.exports = crypt;
 })();

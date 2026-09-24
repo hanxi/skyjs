@@ -3,6 +3,13 @@
 // Usage: ./skyjs examples/chat/config.json
 "use strict";
 
+const sockethelper = require("../../js/internal/net-helper-core.js");
+const socket = require("../../js/internal/net-core.js");
+const websocket = require("../../js/internal/websocket-core.js");
+const fsx = require("../../js/internal/fs-core.js");
+const httpCore = require("../../js/internal/http-core.js");
+const httpd = httpCore.httpd;
+
 const HTTP_PORT = 8080;
 const HTTPS_PORT = 8443;
 const CERT_FILE = "test/certs/server.pem";
@@ -159,10 +166,10 @@ let htmlContent = "";
 
 function loadHtml() {
     try {
-        htmlContent = io.readTextFile("examples/chat/chat.html");
+        htmlContent = fsx.readTextFile("examples/chat/chat.html");
         console.log("chat: loaded chat.html (" + htmlContent.length + " bytes)");
     } catch (e) {
-        skynetcore.error("chat: failed to read examples/chat/chat.html: " + (e && (e.message || e)));
+        skynetcore.runtime.error("chat: failed to read examples/chat/chat.html: " + (e && (e.message || e)));
         htmlContent = "<!doctype html><meta charset=\"utf-8\"><title>error</title>" +
             "<h1>chat.html not found</h1>" +
             "<p>Run skyjs from the repository root directory.</p>";

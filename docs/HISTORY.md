@@ -264,3 +264,15 @@
     `js/skynet.js` 内核迁入 `js/internal/skynet-core.js`，`js/skynet.js` 保留为
     require shim；`snjs.c` 默认 `jsLoader`、嵌入查找与 Makefile 字节码源同步
     指向新路径。bootstrap 显式 require 内核，旧全局 skynet/dispatch 契约不变。
+31. **Node 兼容层 NC0.8：NC0 收口**（2026-09-25）：删除 `snjs.c` 的
+    `lazy_setup_js`/`__snjs_lazy_paths`/嵌入式逐库字节码表与 `js_load_runtime`，
+    C 侧只以普通脚本装载 `js/loader.js`，运行库全部由 `js/bootstrap.js` 以 require
+    装配；删除 `skynetcore` 旧扁平名双挂（`io`/`socket`/`pack`/`unpack`/`str` 归入
+    `fs`/`net`/`seri`/`runtime`）与全部旧全局注入（`io`/`httpd`/`httpc`/
+    `httpInternal`/`socket`/`sockethelper`/`websocket`/`crypt`/`cluster`/
+    `gateserver`），服务与示例改为 `require()` 内部件或 `skyjs/*` 入口。
+    `js/skynet.js` shim 删除，内核仅保留 `js/internal/skynet-core.js`；新增
+    `js/internal/runtime-hooks.js` 承载 socket/cluster 路由钩子。`js/skyjs.d.ts`
+    拆为 `js/types/*.d.ts`（core/fs/net/http/crypt/websocket/skyjs）。globals 场景
+    断言旧全局不再存在、`skynetcore` 只剩分组命名空间。至此 NC0 出口六项验收全部
+    达成（`make test` 两轮全绿）。

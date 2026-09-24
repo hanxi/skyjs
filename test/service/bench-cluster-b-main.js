@@ -3,6 +3,8 @@
 // ordinary payloads and treats the "__ctl_run" control payload as "run your
 // direction back into node A, then sign off". Pair-agnostic; lockstep with
 // test/bench-lua/cluster-main-b.lua.
+const cluster = require("../../js/builtins/skyjs/cluster.js");
+
 skynet.register("main");
 skynet.newservice("skyclusterd");
 cluster.init();
@@ -21,17 +23,17 @@ const CASES = [
 ];
 
 function mark(name) {
-    skynetcore.error("BENCH_BEGIN " + name);
+    skynetcore.runtime.error("BENCH_BEGIN " + name);
 }
 
 function unmark(name) {
-    skynetcore.error("BENCH_END " + name);
+    skynetcore.runtime.error("BENCH_END " + name);
 }
 
 function report(name, n, t0) {
     const dt = Date.now() - t0;
     const mps = dt > 0 ? Math.round(n * 1000 / dt) : 0;
-    skynetcore.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
+    skynetcore.runtime.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
 }
 
 async function runCase(peer, c) {
@@ -67,11 +69,11 @@ skynet.start(() => {
             // ack only after the reverse direction finished
             return (async () => {
                 await runDirection("a");
-                skynetcore.error("BENCH_SUITE_DONE");
+                skynetcore.runtime.error("BENCH_SUITE_DONE");
                 return skynet.pack("ctl-done");
             })();
         }
         return skynet.pack(...vals);
     });
-    skynetcore.error("BENCH_CLUSTER_READY");
+    skynetcore.runtime.error("BENCH_CLUSTER_READY");
 });

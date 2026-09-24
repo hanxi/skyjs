@@ -27,7 +27,7 @@ function unsupported(name) {
 function writeLine(stream, text) {
     const value = typeof text === "string" ? text : String(text);
     for (const line of value.split("\n")) {
-        skynetcore.error(line);
+        skynetcore.runtime.error(line);
     }
 }
 
@@ -143,7 +143,7 @@ function installProcessObject() {
         return BigInt(now[0]) * 1000000000n + BigInt(now[1]);
     };
     processObj.memoryUsage = function () {
-        const used = skynetcore.mem();
+        const used = skynetcore.runtime.mem();
         return {
             rss: used,
             heapTotal: used,

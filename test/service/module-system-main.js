@@ -56,7 +56,7 @@ if (globalThis.require !== undefined || globalThis.module !== undefined ||
     throw new Error("CJS wrapper variables leaked to globalThis");
 }
 
-skynetcore.error("MODULE_SYSTEM_OK cache=1 cycles=" +
+skynetcore.runtime.error("MODULE_SYSTEM_OK cache=1 cycles=" +
     cycleB.aTag + "/" + cycleA.after + " locals=true file=true");
 
 skynet.start(() => {

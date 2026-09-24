@@ -799,18 +799,10 @@ static const char *seri_helpers_js =
 void
 register_seri_bridge(JSContext *ctx, JSValue obj) {
     JSValue seri = JS_NewObject(ctx);
-    JSValue pack = JS_NewCFunction(ctx, js_seri_pack, "pack", 0);
-    JSValue unpack = JS_NewCFunction(ctx, js_seri_unpack, "unpack", 1);
-    JSValue str = JS_NewCFunction(ctx, js_seri_ab2str, "str", 1);
-    JS_SetPropertyStr(ctx, seri, "pack", JS_DupValue(ctx, pack));
-    JS_SetPropertyStr(ctx, seri, "unpack", JS_DupValue(ctx, unpack));
-    JS_SetPropertyStr(ctx, seri, "str", JS_DupValue(ctx, str));
+    JS_SetPropertyStr(ctx, seri, "pack", JS_NewCFunction(ctx, js_seri_pack, "pack", 0));
+    JS_SetPropertyStr(ctx, seri, "unpack", JS_NewCFunction(ctx, js_seri_unpack, "unpack", 1));
+    JS_SetPropertyStr(ctx, seri, "str", JS_NewCFunction(ctx, js_seri_ab2str, "str", 1));
     JS_SetPropertyStr(ctx, obj, "seri", seri);
-    // Flat aliases are kept during NC0 for the legacy lazy-loaded modules;
-    // NC0.8 removes them after all callers migrate to skynetcore.seri.*.
-    JS_SetPropertyStr(ctx, obj, "pack", pack);
-    JS_SetPropertyStr(ctx, obj, "unpack", unpack);
-    JS_SetPropertyStr(ctx, obj, "str", str);
 }
 
 int

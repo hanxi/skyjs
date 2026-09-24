@@ -16,21 +16,21 @@ const TBL10 = { id: 1, type: 2, hp: 100, mp: 50, x: 3, y: 4, lv: 10, exp: 999, g
 const ARR1000 = Array.from({ length: 1000 }, (v, i) => i);
 const STARTUP_N = 500;
 
-const cEcho = skynetcore.intCommand("LAUNCH", "echo");
-const jEcho = skynetcore.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
+const cEcho = skynetcore.runtime.intCommand("LAUNCH", "echo");
+const jEcho = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
 
 function mark(name) {
-    skynetcore.error("BENCH_BEGIN " + name);
+    skynetcore.runtime.error("BENCH_BEGIN " + name);
 }
 
 function unmark(name) {
-    skynetcore.error("BENCH_END " + name);
+    skynetcore.runtime.error("BENCH_END " + name);
 }
 
 function report(name, n, t0) {
     const dt = Date.now() - t0;
     const mps = dt > 0 ? Math.round(n * 1000 / dt) : 0;
-    skynetcore.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
+    skynetcore.runtime.error("BENCH case=" + name + " n=" + n + " mps=" + mps + " ms=" + dt);
 }
 
 // round trips; decode=true additionally unpacks the lua-protocol response,
@@ -92,7 +92,7 @@ async function caseSend(n) {
     // drain barrier (same service queue, so it runs after all sends)
     mark("send_self");
     const t0 = Date.now();
-    for (let i = 0; i < n; i++) skynetcore.send(jEcho, 0, P20, 0);
+    for (let i = 0; i < n; i++) skynetcore.runtime.send(jEcho, 0, P20, 0);
     await skynet.call(jEcho, "text", P20);
     unmark("send_self");
     report("send_self", n, t0);
@@ -129,22 +129,22 @@ async function runAll() {
     caseSeri("sp_t1000", 5000, ARR1000);
     caseSeri("sp_s64k", 2000, P64K);
 
-    await caseStartup("startup_c", () => skynetcore.intCommand("LAUNCH", "echo"));
+    await caseStartup("startup_c", () => skynetcore.runtime.intCommand("LAUNCH", "echo"));
     await caseStartup("startup_self",
-        () => skynetcore.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js"));
+        () => skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js"));
 
     await caseTimer(50000);
 
     // footprint note; process RSS is sampled by the harness itself
     mark("mem_report");
     unmark("mem_report");
-    skynetcore.error("BENCH case=mem_report n=0 mps=0 js_mem=" + skynet.memStat());
-    skynetcore.error("BENCH_SUITE_DONE");
+    skynetcore.runtime.error("BENCH case=mem_report n=0 mps=0 js_mem=" + skynet.memStat());
+    skynetcore.runtime.error("BENCH_SUITE_DONE");
 }
 
 skynet.start(() => {
     skynet.dispatch("text", (msg) => (msg === "run" ? runAll() : "OK"));
     runAll().catch(e => {
-        skynetcore.error("BENCH_FAIL: " + (e && (e.message || e)));
+        skynetcore.runtime.error("BENCH_FAIL: " + (e && (e.message || e)));
     });
 });

@@ -1,7 +1,6 @@
 // skyjs async service core (Task 3).
 // Loaded by snjs before the user script (env key "jsLoader",
-// default "./js/internal/skynet-core.js"); the legacy js/skynet.js file is a
-// thin require shim until NC0.8 removes the lazy loader.
+// default "./js/internal/skynet-core.js").
 //
 // Scheduling model (isomorphic to lualib/skynet.lua):
 //   skynet.lua                     skynet.js
@@ -11,118 +10,21 @@
 // Every await waits on an external event (response/timer), so the pending-job
 // queue always drains before the C dispatch returns the worker thread.
 //
-// Structure note: like socket.js/skyjs cluster.js, everything lives in an IIFE; only
-// globalThis.skynet and the __snjs_* C-layer contracts are global.
-
-// TextEncoder/TextDecoder polyfill. The QuickJS-ng runtime used by snjs does
-// not ship the WHATWG Encoding API, yet crypt-core.js/net-helper-core.js/http-core.js/
-// websocket-core.js all rely on UTF-8 <-> string conversion. skynet.js is the first
-// runtime library loaded, so defining these here makes them available to every
-// later module. Guarded so a future native implementation wins.
-(function () {
-    "use strict";
-
-    if (typeof globalThis.TextEncoder === "undefined") {
-        globalThis.TextEncoder = class TextEncoder {
-            get encoding() { return "utf-8"; }
-            encode(str) {
-                str = str === undefined ? "" : String(str);
-                const out = [];
-                for (let i = 0; i < str.length; i++) {
-                    let cp = str.charCodeAt(i);
-                    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < str.length) {
-                        const lo = str.charCodeAt(i + 1);
-                        if (lo >= 0xdc00 && lo <= 0xdfff) {
-                            cp = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00);
-                            i++;
-                        }
-                    }
-                    if (cp < 0x80) {
-                        out.push(cp);
-                    } else if (cp < 0x800) {
-                        out.push(0xc0 | (cp >> 6), 0x80 | (cp & 0x3f));
-                    } else if (cp < 0x10000) {
-                        out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3f),
-                            0x80 | (cp & 0x3f));
-                    } else {
-                        out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3f),
-                            0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
-                    }
-                }
-                return new Uint8Array(out);
-            }
-        };
-    }
-
-    if (typeof globalThis.TextDecoder === "undefined") {
-        globalThis.TextDecoder = class TextDecoder {
-            constructor(label) {
-                this._encoding = (label || "utf-8").toLowerCase();
-            }
-            get encoding() { return "utf-8"; }
-            decode(input) {
-                if (input === undefined) return "";
-                let bytes;
-                if (input instanceof Uint8Array) {
-                    bytes = input;
-                } else if (input instanceof ArrayBuffer) {
-                    bytes = new Uint8Array(input);
-                } else if (ArrayBuffer.isView(input)) {
-                    bytes = new Uint8Array(input.buffer, input.byteOffset,
-                        input.byteLength);
-                } else {
-                    throw new TypeError("TextDecoder.decode: expected BufferSource");
-                }
-                let out = "";
-                let i = 0;
-                const n = bytes.length;
-                while (i < n) {
-                    const b0 = bytes[i++];
-                    let cp;
-                    if (b0 < 0x80) {
-                        cp = b0;
-                    } else if ((b0 & 0xe0) === 0xc0) {
-                        if (i < n && (bytes[i] & 0xc0) === 0x80) {
-                            cp = ((b0 & 0x1f) << 6) | (bytes[i++] & 0x3f);
-                        } else {
-                            cp = 0xfffd;
-                        }
-                    } else if ((b0 & 0xf0) === 0xe0) {
-                        if (i + 1 < n && (bytes[i] & 0xc0) === 0x80 &&
-                            (bytes[i + 1] & 0xc0) === 0x80) {
-                            cp = ((b0 & 0x0f) << 12) | ((bytes[i++] & 0x3f) << 6) |
-                                (bytes[i++] & 0x3f);
-                        } else {
-                            cp = 0xfffd;
-                        }
-                    } else if ((b0 & 0xf8) === 0xf0) {
-                        if (i + 2 < n && (bytes[i] & 0xc0) === 0x80 &&
-                            (bytes[i + 1] & 0xc0) === 0x80 &&
-                            (bytes[i + 2] & 0xc0) === 0x80) {
-                            cp = ((b0 & 0x07) << 18) | ((bytes[i++] & 0x3f) << 12) |
-                                ((bytes[i++] & 0x3f) << 6) | (bytes[i++] & 0x3f);
-                        } else {
-                            cp = 0xfffd;
-                        }
-                    } else {
-                        cp = 0xfffd;
-                    }
-                    if (cp > 0xffff) {
-                        cp -= 0x10000;
-                        out += String.fromCharCode(0xd800 + (cp >> 10),
-                            0xdc00 + (cp & 0x3ff));
-                    } else {
-                        out += String.fromCharCode(cp);
-                    }
-                }
-                return out;
-            }
-        };
-    }
-})();
+// Structure note: everything lives in an IIFE; only globalThis.skynet and the
+// __snjs_* C-layer contracts remain global.
 
 (function () {
     "use strict";
+
+    // The C host loads this file once as a plain global script; a later
+    // require() must reuse that instance instead of re-installing the routing
+    // state and clobbering globalThis.dispatch.
+    if (globalThis.skynet !== undefined) {
+        if (typeof module !== "undefined" && module.exports) {
+            module.exports = globalThis.skynet;
+        }
+        return;
+    }
 
     const PTYPE_TEXT = 0;
     const PTYPE_RESPONSE = 1;
@@ -131,12 +33,10 @@
     const PTYPE_LUA = 10;
     const PTYPE_SOCKET = 6;
 
+    const hooks = require("./runtime-hooks.js");
     const proto = {};                 // id -> { name, id, dispatch }
     const pendingCalls = new Map();   // session -> { resolve, reject }
     const pendingTimers = new Map();  // session -> fn
-    let socketHandler = null;
-    let clusterRespHandler = null;
-    let clusterErrHandler = null;
 
     function registerProtocol(p) {
         if (typeof p.id !== "number" || p.id < 0 || p.id > 255) throw new Error("invalid protocol id");
@@ -161,18 +61,18 @@
 
     function skynetCall(addr, typename, msg) {
         const type = findType(typename);
-        const session = skynetcore.genId();
+        const session = skynetcore.runtime.genId();
         // responses cross as raw bytes (binary-safe); text protocols decode here
         const isBinary = (type === PTYPE_LUA);
         return new Promise((resolve, reject) => {
             pendingCalls.set(session, {
-                resolve: v => resolve(isBinary ? v : (v instanceof ArrayBuffer ? skynetcore.str(v) : v)),
+                resolve: v => resolve(isBinary ? v : (v instanceof ArrayBuffer ? skynetcore.seri.str(v) : v)),
                 reject,
             });
             // ArrayBuffer payloads (skynet.pack) cross untouched; everything else
             // is coerced to its string form
             const payload = (msg === undefined || msg === null) ? "" : msg;
-            const r = skynetcore.send(addr, type, payload, session);
+            const r = skynetcore.runtime.send(addr, type, payload, session);
             if (r < 0) {
                 pendingCalls.delete(session);
                 reject(new Error("skynet.call: send to " + addr + " failed"));
@@ -185,22 +85,22 @@
     function skynetSend(addr, typename, ...args) {
         const type = findType(typename);
         const payload = (type === PTYPE_LUA)
-            ? skynetcore.pack(...args)
+            ? skynetcore.seri.pack(...args)
             : (args.length === 0 || args[0] === undefined || args[0] === null ? "" : args[0]);
-        return skynetcore.send(addr, type, payload, 0);
+        return skynetcore.runtime.send(addr, type, payload, 0);
     }
 
     // redirect: forward a message with a spoofed source (skynet.redirect).
     // msg crosses untouched (string or ArrayBuffer, e.g. a raw client frame).
     function skynetRedirect(dest, source, typename, session, msg) {
         const type = findType(typename);
-        return skynetcore.redirect(dest, source, type, session | 0,
+        return skynetcore.runtime.redirect(dest, source, type, session | 0,
             (msg === undefined || msg === null) ? "" : msg);
     }
 
     function skynetTimeout(ti, fn) {
         // ti is in centiseconds (10ms units), same as skynet.lua
-        const s = skynetcore.intCommand("TIMEOUT", String(ti));
+        const s = skynetcore.runtime.intCommand("TIMEOUT", String(ti));
         pendingTimers.set(s, fn);
         return s;
     }
@@ -211,37 +111,30 @@
 
     function skynetFork(fn) {
         return Promise.resolve().then(fn).catch((e) => {
-            skynetcore.error("fork error: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
+            skynetcore.runtime.error("fork error: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
         });
     }
 
     function skynetNewservice(name, param) {
-        return skynetcore.intCommand("LAUNCH", param ? (name + " " + param) : name);
+        return skynetcore.runtime.intCommand("LAUNCH", param ? (name + " " + param) : name);
     }
 
     function skynetSelf() {
-        const r = skynetcore.command("REG");   // ":hex"
+        const r = skynetcore.runtime.command("REG");   // ":hex"
         return r ? parseInt(r.slice(1), 16) : 0;
     }
 
     function skynetRegister(name) {
-        const self = skynetcore.command("REG");
-        skynetcore.command("NAME", "." + name + " " + self);
+        const self = skynetcore.runtime.command("REG");
+        skynetcore.runtime.command("NAME", "." + name + " " + self);
     }
 
     // socket events come pre-parsed as {type, id, ud, data} objects (snjs.c);
     // internal/net-core.js installs the actual handler via __snjs_set_socket_handler.
-    globalThis.__snjs_set_socket_handler = function (fn) { socketHandler = fn; };
-    // builtins/skyjs/cluster.js installs handlers for responses that don't belong to skynet.call
-    // (cluster.call bookkeeping): (session, payload) and (session, source)
-    globalThis.__snjs_set_cluster_handlers = function (resp, err) {
-        clusterRespHandler = resp;
-        clusterErrHandler = err;
-    };
-
     // internal router: the C layer calls this (through __snjs_wrap) for every message
     function internalDispatch(msg, session, source, type) {
         if (type === PTYPE_SOCKET) {
+            const socketHandler = hooks.getSocketHandler();
             if (socketHandler) socketHandler(msg);
             return;
         }
@@ -261,8 +154,9 @@
                 t();
                 return;
             }
-            if (clusterRespHandler) {
-                clusterRespHandler(session, msg);
+            const clusterHandlers = hooks.getClusterHandlers();
+            if (clusterHandlers.response) {
+                clusterHandlers.response(session, msg);
             }
             return;
         }
@@ -273,8 +167,9 @@
                 p.reject(new Error("skynet.call: error response from :" + source.toString(16)));
                 return;
             }
-            if (clusterErrHandler) {
-                clusterErrHandler(session, source);
+            const clusterHandlers = hooks.getClusterHandlers();
+            if (clusterHandlers.error) {
+                clusterHandlers.error(session, source);
             }
             return;
         }
@@ -299,8 +194,8 @@
             try {
                 ret = ud(msg, session, source, type);
             } catch (e) {
-                skynetcore.error("dispatch error: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
-                if (wantsReply(session, type)) skynetcore.errorResponse(session, source);
+                skynetcore.runtime.error("dispatch error: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
+                if (wantsReply(session, type)) skynetcore.runtime.errorResponse(session, source);
                 return;
             }
             if (ret && typeof ret.then === "function") {
@@ -308,20 +203,20 @@
                     v => {
                         if (wantsReply(session, type)) {
                             // pass through as-is: string or ArrayBuffer (lua payloads)
-                            skynetcore.response(session, source, v === undefined ? "" : v);
+                            skynetcore.runtime.response(session, source, v === undefined ? "" : v);
                         }
                         return v;
                     },
                     e => {
-                        skynetcore.error("dispatch rejected: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
+                        skynetcore.runtime.error("dispatch rejected: " + (e && (e.message || e)) + "\n" + (e && e.stack || ""));
                         if (wantsReply(session, type)) {
-                            skynetcore.errorResponse(session, source);
+                            skynetcore.runtime.errorResponse(session, source);
                         }
                     }
                 );
             }
             if (wantsReply(session, type)) {
-                skynetcore.response(session, source, ret === undefined ? "" : ret);
+                skynetcore.runtime.response(session, source, ret === undefined ? "" : ret);
             }
             return ret;
         };
@@ -330,7 +225,7 @@
     globalThis.dispatch = internalDispatch;
 
     // console.* debug surface: every level funnels into the skynet log channel
-    // (via skynetcore.error) so output stays unified in the logger, prefixed
+    // (via skynetcore.runtime.error) so output stays unified in the logger, prefixed
     // with the service handle. Non-string values are rendered recursively:
     // Maps as entries, BigInt with a trailing "n", binary as length summaries.
     function toDisplay(v, depth) {
@@ -433,7 +328,7 @@
 
     const consoleObj = {};
     for (const level of ["log", "info", "debug", "warn", "error", "trace"]) {
-        consoleObj[level] = function (...args) { skynetcore.error(formatLine(args)); };
+        consoleObj[level] = function (...args) { skynetcore.runtime.error(formatLine(args)); };
     }
     // standard console API names (web/node surface), like console.log itself
     consoleObj.time = function (label) {
@@ -441,11 +336,11 @@
     };
     consoleObj.timeLog = function (label, ...args) {
         const k = timeLabel(label);
-        skynetcore.error(elapsedLine("console.timeLog", k, args));
+        skynetcore.runtime.error(elapsedLine("console.timeLog", k, args));
     };
     consoleObj.timeEnd = function (label, ...args) {
         const k = timeLabel(label);
-        skynetcore.error(elapsedLine("console.timeEnd", k, args));
+        skynetcore.runtime.error(elapsedLine("console.timeEnd", k, args));
         timeLabels.delete(k);
     };
     globalThis.console = consoleObj;
@@ -469,13 +364,13 @@
 
     function skynetGetenv(key) {
         if (!_config) {
-            const raw = skynetcore.command("GETENV", "__json_config");
+            const raw = skynetcore.runtime.command("GETENV", "__json_config");
             _config = deepFreeze(raw ? JSON.parse(raw) : {});
         }
         if (key in _config) {
             return _config[key];
         }
-        return skynetcore.command("GETENV", key);
+        return skynetcore.runtime.command("GETENV", key);
     }
 
     globalThis.skynet = {
@@ -495,11 +390,11 @@
         self: skynetSelf,
         register: skynetRegister,
         getenv: skynetGetenv,
-        now: function () { return skynetcore.now(); },
-        memStat: function () { return skynetcore.mem(); },
-        pack: function (...args) { return skynetcore.pack(...args); },
-        unpack: function (buf) { return skynetcore.unpack(buf); },
-        exit: function () { skynetcore.command("EXIT"); },
+        now: function () { return skynetcore.runtime.now(); },
+        memStat: function () { return skynetcore.runtime.mem(); },
+        pack: function (...args) { return skynetcore.seri.pack(...args); },
+        unpack: function (buf) { return skynetcore.seri.unpack(buf); },
+        exit: function () { skynetcore.runtime.command("EXIT"); },
     };
     if (typeof module !== "undefined" && module.exports) {
         module.exports = globalThis.skynet;

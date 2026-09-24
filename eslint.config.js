@@ -17,14 +17,21 @@ const js = require("@eslint/js");
 const tseslint = require("@typescript-eslint/eslint-plugin");
 const tsparser = require("@typescript-eslint/parser");
 
-// globals injected by the snjs QuickJS loader (js/skynet.js et al.)
+// globals injected by bootstrap (js/internal/skynet-core.js et al.)
+// NC0.8 minimal global surface: Node-standard globals + skynet/LuaTable.
+// Legacy engine globals (io/httpd/httpc/httpInternal/socket/sockethelper/
+// websocket/crypt/cluster/gateserver) are gone; require() the module instead.
 const quickjsGlobals = {
-    skynetcore: "readonly", skynet: "readonly", socket: "readonly",
-    crypt: "readonly", sockethelper: "readonly", cluster: "readonly",
-    gateserver: "readonly", httpd: "readonly", httpc: "readonly",
-    httpInternal: "readonly", websocket: "readonly", io: "readonly",
+    skynetcore: "readonly", skynet: "readonly",
     console: "readonly", LuaTable: "readonly", snjsParam: "readonly",
+    Buffer: "readonly",
     TextEncoder: "readonly", TextDecoder: "readonly",
+    AbortController: "readonly", AbortSignal: "readonly",
+    process: "readonly",
+    setTimeout: "readonly", clearTimeout: "readonly",
+    setInterval: "readonly", clearInterval: "readonly",
+    setImmediate: "readonly", clearImmediate: "readonly",
+    queueMicrotask: "readonly",
     dispatch: "writable", // user services define globalThis.dispatch
 };
 
@@ -77,6 +84,8 @@ module.exports = [
                 "^(?!(?:" + retiredNames + ")$)[A-Za-z_$][\\w$]*$",
                 { properties: false, classFields: false }],
             "no-undef": "off", // globals are injected at runtime by the C loader
+            // Internal cores *define* the Buffer/timer/Abort implementations.
+            "no-redeclare": "off",
             // CJS require/module.exports are provided as wrapper parameters,
             // not Node imports; the runtime owns the compatibility loader.
             "@typescript-eslint/no-require-imports": "off",

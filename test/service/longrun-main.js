@@ -9,8 +9,8 @@
 //   2 transient JS echo services: create -> call -> KILL (lifecycle churn)
 skynet.register("main");
 
-const cEcho = skynetcore.intCommand("LAUNCH", "echo");
-const jEcho = skynetcore.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
+const cEcho = skynetcore.runtime.intCommand("LAUNCH", "echo");
+const jEcho = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
 
 const P20 = "ping_" + "m".repeat(15);
 const P64K = "x".repeat(65536);
@@ -25,15 +25,15 @@ async function oneTick() {
         skynet.unpack(await skynet.call(jEcho, "lua", skynet.pack(TBL10)));
     }
     await skynet.call(jEcho, "text", P64K);
-    for (let i = 0; i < 100; i++) skynetcore.send(jEcho, 0, P20, 0);
+    for (let i = 0; i < 100; i++) skynetcore.runtime.send(jEcho, 0, P20, 0);
     const ps = [];
     for (let i = 0; i < 20; i++) ps.push(skynet.sleep(10));
     await Promise.all(ps);
     for (let i = 0; i < 2; i++) {
-        const h = skynetcore.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
+        const h = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js");
         await skynet.call(h, "text", P20);
         // KILL 参数是 :hex 格式（内核 tohandle 只认 :hex/.name，十进制会被拒）
-        skynetcore.command("KILL", ":" + h.toString(16));
+        skynetcore.runtime.command("KILL", ":" + h.toString(16));
     }
 }
 
@@ -44,7 +44,7 @@ async function runLoad() {
     await skynet.sleep(30);
     const minutes = parseInt(globalThis.snjsParam, 10) || 30;
     const durationMs = minutes * 60 * 1000;
-    skynetcore.error("LONGRUN start param=" + globalThis.snjsParam +
+    skynetcore.runtime.error("LONGRUN start param=" + globalThis.snjsParam +
         " duration_ms=" + durationMs);
     let tick = 0;
     let done = 0;
@@ -56,16 +56,16 @@ async function runLoad() {
             await oneTick();
             done += OPS_PER_TICK;
             tick++;
-            skynetcore.error("LONGRUN tick=" + tick + " done=" + done +
+            skynetcore.runtime.error("LONGRUN tick=" + tick + " done=" + done +
                 " js_mem=" + skynet.memStat() + " elapsed_ms=" + (Date.now() - tStart));
             // keep the tick cadence ~1s even when a load burst runs faster
             const spent = Date.now() - t0;
             if (spent < TICK_MS) await skynet.sleep(TICK_MS - spent);
         }
-        skynetcore.error("LONGRUN_DONE done=" + done + " js_mem=" + skynet.memStat() +
+        skynetcore.runtime.error("LONGRUN_DONE done=" + done + " js_mem=" + skynet.memStat() +
             " elapsed_ms=" + (Date.now() - tStart));
     } catch (e) {
-        skynetcore.error("LONGRUN_FAIL: " + (e && (e.message || e)));
+        skynetcore.runtime.error("LONGRUN_FAIL: " + (e && (e.message || e)));
     }
     skynet.exit();
 }

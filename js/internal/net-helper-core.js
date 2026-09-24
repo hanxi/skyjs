@@ -15,7 +15,13 @@
 
     // ---------------------------------------------------------------- helpers
 
-    const textDecoder = new TextDecoder("utf-8");
+    const textCodec = require("./text-codec.js");
+    const netCore = require("./net-core.js");
+    const textDecoder = new textCodec.TextDecoder("utf-8");
+
+    function getSocket() {
+        return netCore;
+    }
 
     /**
      * Concatenate an array of ArrayBuffers into one.
@@ -122,7 +128,7 @@
         // -- write (replaceable by TLS upgrade) -----------------------------
 
         write(data) {
-            socket.write(this.fd, data);
+            getSocket().write(this.fd, data);
         }
 
         // -- internal methods -----------------------------------------------
@@ -222,7 +228,7 @@
             let settled = false;
             let timerSession = 0;
 
-            const fd = socket.connect(host, port, function onConnect(id) {
+            const fd = getSocket().connect(host, port, function onConnect(id) {
                 if (settled) return;
                 settled = true;
                 resolve(id);
@@ -235,7 +241,7 @@
             }
 
             // register an error handler so early failures reject the promise
-            socket.start(fd,
+            getSocket().start(fd,
                 null,   // on_data: not needed yet
                 function onClose() {
                     if (settled) return;
@@ -253,7 +259,7 @@
                 timerSession = skynet.timeout(timeout, function () {
                     if (settled) return;
                     settled = true;
-                    socket.close(fd);
+                    getSocket().close(fd);
                     reject(socketError);
                 });
             }
@@ -268,7 +274,7 @@
      */
     function helperWritefunc(fd) {
         return function (data) {
-            const r = socket.write(fd, data);
+            const r = getSocket().write(fd, data);
             if (r === undefined || r < 0) {
                 throw socketError;
             }
@@ -314,7 +320,7 @@
         // Replace write: plaintext → TLS encrypt → raw socket write
         reader.write = function (data) {
             if (typeof data === "string") {
-                const enc = new TextEncoder();
+                const enc = new textCodec.TextEncoder();
                 data = enc.encode(data).buffer;
             } else if (!(data instanceof ArrayBuffer)) {
                 if (ArrayBuffer.isView(data)) {
@@ -384,7 +390,7 @@
 
     // ------------------------------------------------------- public interface
 
-    globalThis.sockethelper = {
+    const socketHelper = {
         socketError,
         BufferedReader,
         connect: helperConnect,
@@ -397,17 +403,15 @@
          */
         reader(fd) {
             const r = new BufferedReader(fd);
-            socket.start(fd,
+            getSocket().start(fd,
                 (data) => r.onData(data),
                 () => r.onClose(),
                 (_id, msg) => r.onError(msg),
                 { binary: true }
             );
-            socket.resume(fd);
+            getSocket().resume(fd);
             return r;
         },
     };
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = globalThis.sockethelper;
-    }
+    module.exports = socketHelper;
 })();

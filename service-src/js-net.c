@@ -578,7 +578,6 @@ register_net_bridge(JSContext *ctx, JSValue obj) {
 	JS_SetPropertyStr(ctx, net, "shutdown", JS_NewCFunction(ctx, js_sock_shutdown, "shutdown", 1));
 	JS_SetPropertyStr(ctx, net, "nodelay", JS_NewCFunction(ctx, js_sock_nodelay, "nodelay", 1));
 	JS_SetPropertyStr(ctx, net, "netpackMode", JS_NewCFunction(ctx, js_sock_netpack_mode, "netpackMode", 0));
-	JS_SetPropertyStr(ctx, obj, "socket", JS_DupValue(ctx, net));
 	JS_SetPropertyStr(ctx, obj, "net", net);
 
 	JSValue netpack = JS_NewObject(ctx);

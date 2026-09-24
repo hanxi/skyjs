@@ -10,8 +10,11 @@
     "use strict";
 
     const LIMIT = 8192;
-    const textDecoder = new TextDecoder("utf-8");
-    const textEncoder = new TextEncoder();
+    const textCodec = require("./text-codec.js");
+    const netCore = require("./net-core.js");
+    const netHelper = require("./net-helper-core.js");
+    const textDecoder = new textCodec.TextDecoder("utf-8");
+    const textEncoder = new textCodec.TextEncoder();
 
     // -------------------------------------------------- internal helpers
 
@@ -148,7 +151,7 @@
                     parts.push("\r\n");
                 }
             } catch (e) {
-                if (e !== sockethelper.socketError) throw e;
+                if (e !== netHelper.socketError) throw e;
                 // socket closed: drain remaining buffered data
                 if (reader.total > 0) {
                     try {
@@ -267,7 +270,7 @@
 
             return { code: 200, url, method, header, body };
         } catch (e) {
-            if (e === sockethelper.socketError) return { code: 400 };
+            if (e === netHelper.socketError) return { code: 400 };
             return { code: 400 };
         }
     };
@@ -367,7 +370,7 @@
                 return conn;
             }
             // expired or closed — discard silently
-            try { socket.close(conn.fd); } catch (_) { /* ignore */ }
+            try { netCore.close(conn.fd); } catch (_) { /* ignore */ }
         }
         connPool.delete(key);
         return null;
@@ -382,7 +385,7 @@
         const connHdr = respHeader ? respHeader["connection"] : null;
         if (typeof connHdr === "string" &&
             connHdr.toLowerCase() === "close") {
-            try { socket.close(fd); } catch (_) { /* ignore */ }
+            try { netCore.close(fd); } catch (_) { /* ignore */ }
             return;
         }
 
@@ -406,7 +409,7 @@
         // cap per-host connections: evict oldest if full
         while (conns.length >= MAX_PER_HOST) {
             const oldest = conns.shift();
-            try { socket.close(oldest.fd); } catch (_) { /* ignore */ }
+            try { netCore.close(oldest.fd); } catch (_) { /* ignore */ }
         }
 
         conns.push({ fd, reader, expireTime });
@@ -427,7 +430,7 @@
                 for (let i = conns.length - 1; i >= 0; i--) {
                     const c = conns[i];
                     if (c.reader.closed || now >= c.expireTime) {
-                        try { socket.close(c.fd); } catch (_) { /* ignore */ }
+                        try { netCore.close(c.fd); } catch (_) { /* ignore */ }
                         conns.splice(i, 1);
                     }
                 }
@@ -543,7 +546,7 @@
                 bytes.push(str.charCodeAt(i));
             }
         }
-        return new TextDecoder().decode(new Uint8Array(bytes));
+        return new textCodec.TextDecoder().decode(new Uint8Array(bytes));
     }
 
     function httpcUrlParse(url) {
@@ -671,17 +674,17 @@
      * Open a new connection (with optional TLS upgrade).
      */
     async function openConnection(parsed, timeout, caFile) {
-        const fd = await sockethelper.connect(
+        const fd = await netHelper.connect(
             parsed.host, parsed.port, timeout
         );
-        const reader = sockethelper.reader(fd);
+        const reader = netHelper.reader(fd);
 
         if (parsed.protocol === "https") {
             if (!skynetcore.tls) {
-                socket.close(fd);
+                netCore.close(fd);
                 throw new Error("HTTPS requires OpenSSL build");
             }
-            await sockethelper.tlsUpgrade(
+            await netHelper.tlsUpgrade(
                 reader, parsed.host, false, null, null, caFile
             );
         }
@@ -759,7 +762,7 @@
                 if (canPool) {
                     poolPut(key, fd, reader, result.header);
                 } else {
-                    try { socket.close(fd); } catch (_) { /* ignore */ }
+                    try { netCore.close(fd); } catch (_) { /* ignore */ }
                 }
 
                 return {
@@ -770,12 +773,12 @@
             } catch (e) {
                 // stale pooled connection: retry once with a fresh one
                 if (fromPool && attempt === 0) {
-                    try { socket.close(fd); } catch (_) { /* ignore */ }
+                    try { netCore.close(fd); } catch (_) { /* ignore */ }
                     fromPool = false;
                     continue;
                 }
                 // real failure: close and rethrow
-                try { socket.close(fd); } catch (_) { /* ignore */ }
+                try { netCore.close(fd); } catch (_) { /* ignore */ }
                 throw e;
             }
         }
@@ -842,7 +845,7 @@
                 poolPut(key, fd, reader, result.header);
                 return result.status;
             } catch (e) {
-                try { socket.close(fd); } catch (_) { /* ignore */ }
+                try { netCore.close(fd); } catch (_) { /* ignore */ }
                 if (!pooled || attempt > 0) throw e;
                 // stale pooled connection, retry with fresh
             }
@@ -891,7 +894,7 @@
                 if (!isClose && !reader.closed) {
                     poolPut(key, fd, reader, result.header);
                 } else {
-                    try { socket.close(fd); } catch (_) { /* ignore */ }
+                    try { netCore.close(fd); } catch (_) { /* ignore */ }
                 }
             }
 
@@ -941,7 +944,7 @@
                         // read-all mode: one shot
                         stream._closed = true;
                         stream.connected = false;
-                        try { socket.close(fd); } catch (_) { /* ignore */ }
+                        try { netCore.close(fd); } catch (_) { /* ignore */ }
                         return null;
                     }
                 },
@@ -950,14 +953,14 @@
                     if (!stream._closed) {
                         stream._closed = true;
                         stream.connected = false;
-                        try { socket.close(fd); } catch (_) { /* ignore */ }
+                        try { netCore.close(fd); } catch (_) { /* ignore */ }
                     }
                 },
             };
 
             return stream;
         } catch (e) {
-            try { socket.close(fd); } catch (_) { /* ignore */ }
+            try { netCore.close(fd); } catch (_) { /* ignore */ }
             throw e;
         }
     };
@@ -978,7 +981,7 @@
     httpcObj.closeAllKeepalive = function () {
         for (const [_key, conns] of connPool) {
             for (let i = 0; i < conns.length; i++) {
-                try { socket.close(conns[i].fd); } catch (_) { /* ignore */ }
+                try { netCore.close(conns[i].fd); } catch (_) { /* ignore */ }
             }
         }
         connPool.clear();
@@ -986,20 +989,15 @@
 
     // ---------------------------------------- exports
 
-    globalThis.httpd = httpdObj;
-    globalThis.httpc = httpcObj;
-    globalThis.httpInternal = {
-        recvHeader,
-        parseHeader,
-        recvChunkedBody,
-        recvBody,
-        httpStatusMsg,
+    module.exports = {
+        httpd: httpdObj,
+        httpc: httpcObj,
+        httpInternal: {
+            recvHeader,
+            parseHeader,
+            recvChunkedBody,
+            recvBody,
+            httpStatusMsg,
+        },
     };
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = {
-            httpd: httpdObj,
-            httpc: httpcObj,
-            httpInternal: globalThis.httpInternal,
-        };
-    }
 })();

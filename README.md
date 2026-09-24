@@ -92,7 +92,7 @@ Windows 测试套件暂未启用(依赖 POSIX 信号等工具链)。
                                 # logger/logservice/profile 映射 skynet_config
 ```
 
-JS 服务脚本约定(加载顺序:js/skynet.js → js/internal/net-core.js → js/builtins/skyjs/cluster.js → js/builtins/skyjs/gateserver.js → 用户脚本):
+JS 服务脚本约定(加载顺序:bootstrap skynet-core → js/internal/net-core.js → js/builtins/skyjs/cluster.js → js/builtins/skyjs/gateserver.js → 用户脚本):
 
 ```js
 skynet.start(() => {

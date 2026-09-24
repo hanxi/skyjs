@@ -1,6 +1,6 @@
 // Task 3 acceptance: chain hop B plus concurrent handler reentry.
-const cH = skynetcore.intCommand("LAUNCH", "snjs test/service/async-chain-c-worker.js");
-const xH = skynetcore.intCommand("LAUNCH", "snjs test/service/async-dual-worker.js");
+const cH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/async-chain-c-worker.js");
+const xH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/async-dual-worker.js");
 const REENTRY_PREFIX = "reentry:";
 const RESUME_PREFIX = "resume:";
 const DUAL_PREFIX = "dual:";

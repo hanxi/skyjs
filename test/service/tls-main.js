@@ -2,6 +2,9 @@
 // runs HTTPS + WSS client tests, prints TLS <scenario> OK / TLS FAIL markers.
 "use strict";
 
+const crypt = require("../../js/internal/crypt-core.js");
+const websocket = require("../../js/internal/websocket-core.js");
+
 let failCount = 0;
 
 function check(label, ok, detail) {

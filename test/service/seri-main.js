@@ -4,12 +4,14 @@
 // 3. write a JS-packed file for seri-tool dump inspection
 // 4. PTYPE_LUA roundtrip between two JS services (ArrayBuffer payloads)
 
-const seriBH = skynetcore.intCommand("LAUNCH", "snjs test/service/seri-worker.js");
+const io = require("../../js/internal/fs-core.js");
+
+const seriBH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/seri-worker.js");
 skynet.register("main");
-skynetcore.intCommand("LAUNCH", "driver .main 300 start 0");
+skynetcore.runtime.intCommand("LAUNCH", "driver .main 300 start 0");
 
 function check(cond, name) {
-    if (!cond) skynetcore.error("SERI FAIL: " + name);
+    if (!cond) skynetcore.runtime.error("SERI FAIL: " + name);
     return !!cond;
 }
 
@@ -34,7 +36,7 @@ skynet.start(() => {
         ok = check(vals[11] === "hello", "string") && ok;
         ok = check(vals[12] === "x".repeat(100), "long string") && ok;
         const t1 = vals[13];
-        skynetcore.error("SERI t1 = " + JSON.stringify(t1 && [...t1.entries()]));
+        skynetcore.runtime.error("SERI t1 = " + JSON.stringify(t1 && [...t1.entries()]));
         ok = check(t1 instanceof LuaTable, "array table is LuaTable") && ok;
         ok = check(t1.array[0] === 10 && t1.array[1] === 20 && t1.array[2] === 30, "LuaTable array segment 0-based") && ok;
         // .get mirrors Lua t[k] (1-based)
@@ -60,15 +62,15 @@ skynet.start(() => {
         // JS -> file, later inspected with: test/seri-tool dump build/seri-js.bin
         io.writeFile("build/seri-js.bin", skynet.pack(
             "two", 1, new Map([["k", 5n], ["pi", 3.14]]), [1, new Map()]));
-        skynetcore.error("SERI wrote build/seri-js.bin");
+        skynetcore.runtime.error("SERI wrote build/seri-js.bin");
 
         // PTYPE_LUA roundtrip between two JS services
         const sent = skynet.pack("msg", 42, [1, 2]);
-        skynetcore.error("SERI sent bytes: " + JSON.stringify(Array.from(new Uint8Array(sent))));
+        skynetcore.runtime.error("SERI sent bytes: " + JSON.stringify(Array.from(new Uint8Array(sent))));
         const back = await skynet.call(seriBH, "lua", sent);
-        skynetcore.error("SERI back bytes: " + JSON.stringify(Array.from(new Uint8Array(back))));
+        skynetcore.runtime.error("SERI back bytes: " + JSON.stringify(Array.from(new Uint8Array(back))));
         const rb = skynet.unpack(back);
-        skynetcore.error("SERI rb = " + JSON.stringify(rb.map(v => v instanceof Map ? [...v.entries()] : (typeof v === "bigint" ? v.toString() + "n" : v))));
+        skynetcore.runtime.error("SERI rb = " + JSON.stringify(rb.map(v => v instanceof Map ? [...v.entries()] : (typeof v === "bigint" ? v.toString() + "n" : v))));
         ok = check(rb[0] === "seri_b_ok" && rb[1] === 43 && rb[2] instanceof LuaTable &&
             rb[2].get(1) === 1 && rb[2].get(2) === 2, "lua protocol roundtrip") && ok;
 
@@ -93,7 +95,7 @@ skynet.start(() => {
         ok = check(mixedBack instanceof LuaTable && mixedBack.get(1) === 10 &&
             mixedBack.get(2) === 20 && mixedBack.hash.get("x") === 1, "mixed LuaTable roundtrip") && ok;
 
-        skynetcore.error("SERI RESULT: " + (ok ? "ALL_OK" : "FAILED"));
+        skynetcore.runtime.error("SERI RESULT: " + (ok ? "ALL_OK" : "FAILED"));
         return ok ? "SERI_ALL_OK" : "SERI_FAILED";
     });
 });

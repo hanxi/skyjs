@@ -1,6 +1,6 @@
 "use strict";
 
-skynetcore.error("PROCESS_EXIT_START");
+skynetcore.runtime.error("PROCESS_EXIT_START");
 setTimeout(() => {
     try {
         process.exit(3);

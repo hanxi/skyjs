@@ -110,18 +110,18 @@ function elapsedLine(prefix, label, args) {
 const consoleObject = {};
 for (const level of ["log", "info", "debug", "warn", "error", "trace"]) {
     consoleObject[level] = function (...args) {
-        skynetcore.error(formatLine(args));
+        skynetcore.runtime.error(formatLine(args));
     };
 }
 consoleObject.time = function (label) {
     timeLabels.set(timeLabel(label), Date.now());
 };
 consoleObject.timeLog = function (label, ...args) {
-    skynetcore.error(elapsedLine("console.timeLog", timeLabel(label), args));
+    skynetcore.runtime.error(elapsedLine("console.timeLog", timeLabel(label), args));
 };
 consoleObject.timeEnd = function (label, ...args) {
     const key = timeLabel(label);
-    skynetcore.error(elapsedLine("console.timeEnd", key, args));
+    skynetcore.runtime.error(elapsedLine("console.timeEnd", key, args));
     timeLabels.delete(key);
 };
 

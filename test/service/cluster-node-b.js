@@ -1,5 +1,7 @@
 // Task 6 acceptance, node B (port 2529): launches skyclusterd, opens the
 // listener, registers "svc2", and serves lua-protocol requests.
+const cluster = require("../../js/builtins/skyjs/cluster.js");
+
 skynet.register("main");
 skynet.newservice("skyclusterd");
 cluster.init();

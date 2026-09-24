@@ -7,12 +7,12 @@
 // 6. error propagation: call async_bomb_worker -> PTYPE_ERROR -> reject -> catch
 // The driver triggers "start" and logs the returned summary.
 
-const echoH = skynetcore.intCommand("LAUNCH", "echo");
-const chainH = skynetcore.intCommand("LAUNCH", "snjs test/service/async-chain-a-worker.js");
-const bombH = skynetcore.intCommand("LAUNCH", "snjs test/service/async-bomb-worker.js");
-skynetcore.error("MAIN echo=" + echoH + " chain=" + chainH + " bomb=" + bombH);
+const echoH = skynetcore.runtime.intCommand("LAUNCH", "echo");
+const chainH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/async-chain-a-worker.js");
+const bombH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/async-bomb-worker.js");
+skynetcore.runtime.error("MAIN echo=" + echoH + " chain=" + chainH + " bomb=" + bombH);
 skynet.register("main");
-skynetcore.intCommand("LAUNCH", "driver .main 300 start 0");
+skynetcore.runtime.intCommand("LAUNCH", "driver .main 300 start 0");
 
 async function runTests() {
     const r1 = await skynet.call(echoH, "text", "ping");
@@ -53,7 +53,7 @@ async function runTests() {
 
     const result = "R1=" + r1 + "|R2=" + r2 + "|REENTRY=" + reentryResults.join(",") +
         "|DUAL=" + dualResult + "|CONC=" + rs.join(",") + "|ERR=" + errCaught;
-    skynetcore.error("ASYNC RESULT: " + result);
+    skynetcore.runtime.error("ASYNC RESULT: " + result);
     return result;
 }
 

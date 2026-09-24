@@ -60,9 +60,6 @@ struct js_block {
 /* js-seri.c extensions (Task 5) */
 int js_seri_init(struct snjs *l);
 
-/* forward declaration for lazy loader (defined after read_file/optstring) */
-static int eval_runtime(struct snjs *l, const char *path, const char *where);
-
 /* ------------------------------------------------------------------ allocator */
 
 static void
@@ -415,60 +412,6 @@ js_redirect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 	return JS_NewInt32(ctx, r);
 }
 
-static const char lazy_setup_js[] =
-"(function() {\n"
-"    const P = globalThis.__snjs_lazy_paths;\n"
-"    delete globalThis.__snjs_lazy_paths;\n"
-"    const F = {};\n"
-"    F[P.socket]       = { g: ['socket'], d: [] };\n"
-"    F[P.crypt]        = { g: ['crypt'], d: [] };\n"
-"    F[P.sockethelper] = { g: ['sockethelper'], d: [P.socket] };\n"
-"    F[P.cluster]      = { g: ['cluster'], d: [] };\n"
-"    F[P.gateserver]   = { g: ['gateserver'], d: [] };\n"
-"    F[P.http]         = { g: ['httpd', 'httpc', 'httpInternal'], d: [P.sockethelper] };\n"
-"    F[P.websocket]    = { g: ['websocket'], d: [P.http, P.crypt, P.sockethelper] };\n"
-"    F[P.io]           = { g: ['io'], d: [] };\n"
-"    F[P.ioservice]    = { g: [], d: [P.io, P.crypt] };\n"
-"    const L = {};\n"
-"    function load(p) {\n"
-"        if (L[p]) return;\n"
-"        const m = F[p];\n"
-"        if (!m) return;\n"
-"        m.d.forEach(load);\n"
-"        m.g.forEach(function(n) { delete globalThis[n]; });\n"
-"        skynetcore.__load_runtime(p);\n"
-"        L[p] = true;\n"
-"    }\n"
-"    const keys = Object.keys(F);\n"
-"    for (let i = 0; i < keys.length; i++) {\n"
-"        const p = keys[i];\n"
-"        const names = F[p].g;\n"
-"        for (let j = 0; j < names.length; j++) {\n"
-"            (function(path, name) {\n"
-"                Object.defineProperty(globalThis, name, {\n"
-"                    get: function() { load(path); return globalThis[name]; },\n"
-"                    configurable: true,\n"
-"                    enumerable: true\n"
-"                });\n"
-"            })(p, names[j]);\n"
-"        }\n"
-"    }\n"
-"})();\n";
-
-static JSValue
-js_load_runtime(JSContext *ctx, JSValueConst this_val,
-                int argc, JSValueConst *argv)
-{
-	struct snjs *l = JS_GetContextOpaque(ctx);
-	const char *path = JS_ToCString(ctx, argv[0]);
-	if (!path) return JS_EXCEPTION;
-	int r = eval_runtime(l, path, "lazy module load error");
-	JS_FreeCString(ctx, path);
-	if (r < 0)
-		return JS_ThrowInternalError(ctx, "failed to load runtime module");
-	return JS_UNDEFINED;
-}
-
 static int
 drain_pending_jobs(struct snjs *l) {
 	JSContext *c1;
@@ -551,18 +494,34 @@ js_features(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 }
 
 static void
+register_runtime_host_bridge(struct snjs *l, JSValue obj) {
+	JSValue runtime = JS_GetPropertyStr(l->jsc, obj, "runtime");
+	JS_SetPropertyStr(l->jsc, runtime, "send",
+		JS_NewCFunction(l->jsc, js_send, "send", 4));
+	JS_SetPropertyStr(l->jsc, runtime, "command",
+		JS_NewCFunction(l->jsc, js_command, "command", 2));
+	JS_SetPropertyStr(l->jsc, runtime, "intCommand",
+		JS_NewCFunction(l->jsc, js_intcommand, "intCommand", 2));
+	JS_SetPropertyStr(l->jsc, runtime, "genId",
+		JS_NewCFunction(l->jsc, js_genid, "genId", 0));
+	JS_SetPropertyStr(l->jsc, runtime, "now",
+		JS_NewCFunction(l->jsc, js_now, "now", 0));
+	JS_SetPropertyStr(l->jsc, runtime, "error",
+		JS_NewCFunction(l->jsc, js_error, "error", 1));
+	JS_SetPropertyStr(l->jsc, runtime, "mem",
+		JS_NewCFunction(l->jsc, js_mem, "mem", 0));
+	JS_SetPropertyStr(l->jsc, runtime, "response",
+		JS_NewCFunction(l->jsc, js_response, "response", 3));
+	JS_SetPropertyStr(l->jsc, runtime, "errorResponse",
+		JS_NewCFunction(l->jsc, js_error_response, "errorResponse", 2));
+	JS_SetPropertyStr(l->jsc, runtime, "redirect",
+		JS_NewCFunction(l->jsc, js_redirect, "redirect", 5));
+	JS_FreeValue(l->jsc, runtime);
+}
+
+static void
 register_bridge(struct snjs *l) {
 	JSValue obj = JS_NewObject(l->jsc);
-	JS_SetPropertyStr(l->jsc, obj, "send", JS_NewCFunction(l->jsc, js_send, "send", 4));
-	JS_SetPropertyStr(l->jsc, obj, "command", JS_NewCFunction(l->jsc, js_command, "command", 2));
-	JS_SetPropertyStr(l->jsc, obj, "intCommand", JS_NewCFunction(l->jsc, js_intcommand, "intCommand", 2));
-	JS_SetPropertyStr(l->jsc, obj, "genId", JS_NewCFunction(l->jsc, js_genid, "genId", 0));
-	JS_SetPropertyStr(l->jsc, obj, "now", JS_NewCFunction(l->jsc, js_now, "now", 0));
-	JS_SetPropertyStr(l->jsc, obj, "error", JS_NewCFunction(l->jsc, js_error, "error", 1));
-	JS_SetPropertyStr(l->jsc, obj, "mem", JS_NewCFunction(l->jsc, js_mem, "mem", 0));
-	JS_SetPropertyStr(l->jsc, obj, "response", JS_NewCFunction(l->jsc, js_response, "response", 3));
-	JS_SetPropertyStr(l->jsc, obj, "errorResponse", JS_NewCFunction(l->jsc, js_error_response, "errorResponse", 2));
-	JS_SetPropertyStr(l->jsc, obj, "redirect", JS_NewCFunction(l->jsc, js_redirect, "redirect", 5));
 	JS_SetPropertyStr(l->jsc, obj, "features",
 		JS_NewCFunction(l->jsc, js_features, "features", 0));
 
@@ -573,13 +532,10 @@ register_bridge(struct snjs *l) {
 			JS_NewCFunction(l->jsc, js_drain_jobs, "__snjs_drain_jobs", 0));
 		JS_FreeValue(l->jsc, g);
 	}
-	// js-runtime primitives (process/module-source foundation)
 	register_runtime_bridge(l, obj);
-
-	// js-seri extensions (pack/unpack, see js-seri.c)
+	register_runtime_host_bridge(l, obj);
 	register_seri_bridge(l->jsc, obj);
-	JS_SetPropertyStr(l->jsc, obj, "__load_runtime",
-		JS_NewCFunction(l->jsc, js_load_runtime, "__load_runtime", 1));
+
 	JSValue g = JS_GetGlobalObject(l->jsc);
 	JS_SetPropertyStr(l->jsc, g, "skynetcore", obj);
 	register_crypto_bridge(l->jsc, g);
@@ -728,122 +684,6 @@ optstring(struct skynet_context *ctx, const char *key, const char * str) {
 	return ret ? ret : str;
 }
 
-/*
- * Embedded bytecode of the default runtime libraries (generated by the
- * Makefile via qjsc from js/internal/skynet-core.js, js/internal/net-core.js, js/internal/crypt-core.js,
- * builtins/skyjs/cluster.js, builtins/skyjs/gateserver.js, internal/http-core.js and internal/websocket-core.js;
- * see build/rt_bc.c).
- * Loading bytecode skips the per-service parse cost and the retained
- * source text. A non-default jsLoader/jsSocket/jsCrypt/jsSockethelper/
- * jsCluster/jsGateserver/jsHttp/jsWebsocket env value falls back to
- * source eval,
- * as does an unreadable bytecode blob (submodule/version skew) --
- * behaviour stays identical either way.
- */
-extern const uint8_t snjs_bc_skynet[];
-extern const uint32_t snjs_bc_skynet_size;
-extern const uint8_t snjs_bc_socket[];
-extern const uint32_t snjs_bc_socket_size;
-extern const uint8_t snjs_bc_crypt[];
-extern const uint32_t snjs_bc_crypt_size;
-extern const uint8_t snjs_bc_sockethelper[];
-extern const uint32_t snjs_bc_sockethelper_size;
-extern const uint8_t snjs_bc_cluster[];
-extern const uint32_t snjs_bc_cluster_size;
-extern const uint8_t snjs_bc_gateserver[];
-extern const uint32_t snjs_bc_gateserver_size;
-extern const uint8_t snjs_bc_http[];
-extern const uint32_t snjs_bc_http_size;
-extern const uint8_t snjs_bc_websocket[];
-extern const uint32_t snjs_bc_websocket_size;
-extern const uint8_t snjs_bc_io[];
-extern const uint32_t snjs_bc_io_size;
-extern const uint8_t snjs_bc_ioservice[];
-extern const uint32_t snjs_bc_ioservice_size;
-
-static const uint8_t *
-embedded_runtime_bc(const char *path, size_t *len) {
-	if (strcmp(path, "./js/internal/skynet-core.js") == 0) {
-		*len = snjs_bc_skynet_size;
-		return snjs_bc_skynet;
-	}
-	if (strcmp(path, "./js/internal/net-core.js") == 0) {
-		*len = snjs_bc_socket_size;
-		return snjs_bc_socket;
-	}
-	if (strcmp(path, "./js/internal/crypt-core.js") == 0) {
-		*len = snjs_bc_crypt_size;
-		return snjs_bc_crypt;
-	}
-	if (strcmp(path, "./js/internal/net-helper-core.js") == 0) {
-		*len = snjs_bc_sockethelper_size;
-		return snjs_bc_sockethelper;
-	}
-	if (strcmp(path, "./js/builtins/skyjs/cluster.js") == 0) {
-		*len = snjs_bc_cluster_size;
-		return snjs_bc_cluster;
-	}
-	if (strcmp(path, "./js/builtins/skyjs/gateserver.js") == 0) {
-		*len = snjs_bc_gateserver_size;
-		return snjs_bc_gateserver;
-	}
-	if (strcmp(path, "./js/internal/http-core.js") == 0) {
-		*len = snjs_bc_http_size;
-		return snjs_bc_http;
-	}
-	if (strcmp(path, "./js/internal/websocket-core.js") == 0) {
-		*len = snjs_bc_websocket_size;
-		return snjs_bc_websocket;
-	}
-	if (strcmp(path, "./js/internal/fs-core.js") == 0) {
-		*len = snjs_bc_io_size;
-		return snjs_bc_io;
-	}
-	if (strcmp(path, "./js/ioservice.js") == 0) {
-		*len = snjs_bc_ioservice_size;
-		return snjs_bc_ioservice;
-	}
-	return NULL;
-}
-
-/*
- * Evaluate one runtime library. Returns 1 when it was loaded, 0 when the
- * file was absent (optional loader skipped, matching the original
- * read_file behaviour) and -1 on a fatal evaluation error (exception
- * already dumped).
- */
-static int
-eval_runtime(struct snjs *l, const char *path, const char *where) {
-	size_t blen = 0;
-	const uint8_t *bc = embedded_runtime_bc(path, &blen);
-	if (bc != NULL) {
-		JSValue fun = JS_ReadObject(l->jsc, bc, blen, JS_READ_OBJ_BYTECODE);
-		if (!JS_IsException(fun)) {
-			JSValue ret = JS_EvalFunction(l->jsc, fun);   // consumes fun
-			if (!JS_IsException(ret)) {
-				JS_FreeValue(l->jsc, ret);
-				return 1;
-			}
-			dump_exception(l, where);
-			return -1;   // bytecode parsed but errored: a real failure
-		}
-		// version skew or corruption: discard and fall back to source
-		JS_FreeValue(l->jsc, JS_GetException(l->jsc));
-	}
-	char *code = read_file(path);
-	if (code == NULL) {
-		return 0;   // optional loader absent
-	}
-	JSValue ret = JS_Eval(l->jsc, code, strlen(code), path, JS_EVAL_TYPE_GLOBAL);
-	skynet_free(code);
-	if (JS_IsException(ret)) {
-		dump_exception(l, where);
-		return -1;
-	}
-	JS_FreeValue(l->jsc, ret);
-	return 1;
-}
-
 static int
 init_cb(struct snjs *l, struct skynet_context *ctx, const char * args, size_t sz) {
 	l->ctx = ctx;
@@ -868,46 +708,9 @@ init_cb(struct snjs *l, struct skynet_context *ctx, const char * args, size_t sz
 		return 1;
 	}
 
-	// Preload the JS runtime core (skynet.js) unless overridden or absent.
-	// Its presence switches the service to managed mode: responses are sent
-	// from JS via __snjs_wrap, enabling async dispatch.
-	const char *loader = optstring(ctx, "jsLoader", "./js/internal/skynet-core.js");
-	int lr = eval_runtime(l, loader, "snjs loader error");
-	if (lr < 0) return 1;
-	if (lr > 0) l->js_managed = 1;
-
-	{
-		JSValue g = JS_GetGlobalObject(l->jsc);
-		JSValue paths = JS_NewObject(l->jsc);
-		JS_SetPropertyStr(l->jsc, paths, "socket",
-			JS_NewString(l->jsc, optstring(ctx, "jsSocket", "./js/internal/net-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "crypt",
-			JS_NewString(l->jsc, optstring(ctx, "jsCrypt", "./js/internal/crypt-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "sockethelper",
-			JS_NewString(l->jsc, optstring(ctx, "jsSockethelper", "./js/internal/net-helper-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "cluster",
-			JS_NewString(l->jsc, optstring(ctx, "jsCluster", "./js/builtins/skyjs/cluster.js")));
-		JS_SetPropertyStr(l->jsc, paths, "gateserver",
-			JS_NewString(l->jsc, optstring(ctx, "jsGateserver", "./js/builtins/skyjs/gateserver.js")));
-		JS_SetPropertyStr(l->jsc, paths, "http",
-			JS_NewString(l->jsc, optstring(ctx, "jsHttp", "./js/internal/http-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "websocket",
-			JS_NewString(l->jsc, optstring(ctx, "jsWebsocket", "./js/internal/websocket-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "io",
-			JS_NewString(l->jsc, optstring(ctx, "jsIo", "./js/internal/fs-core.js")));
-		JS_SetPropertyStr(l->jsc, paths, "ioservice",
-			JS_NewString(l->jsc, optstring(ctx, "jsIoservice", "./js/ioservice.js")));
-		JS_SetPropertyStr(l->jsc, g, "__snjs_lazy_paths", paths);
-		JS_FreeValue(l->jsc, g);
-		JSValue lret = JS_Eval(l->jsc, lazy_setup_js, strlen(lazy_setup_js),
-			"<lazy>", JS_EVAL_TYPE_GLOBAL);
-		if (JS_IsException(lret)) {
-			dump_exception(l, "snjs lazy setup error");
-			return 1;
-		}
-		JS_FreeValue(l->jsc, lret);
-	}
-
+	// CJS 自举：C 侧只把 js/loader.js 当作普通脚本装载，其余运行库由
+	// js/bootstrap.js 按 require 装配（NC0.8 起取消逐库懒加载表与旧全局注入）。
+	l->js_managed = 1;
 	JS_RunGC(l->rt);
 
 	// args: "<script path> [param]"

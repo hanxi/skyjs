@@ -10,7 +10,31 @@ const processModule = require("./internal/process.js");
 const textCodec = require("./internal/text-codec.js");
 const abort = require("./internal/abort.js");
 const bufferCore = require("./internal/buffer-core.js");
+
+// Install the encoding/abort globals before loading the cores that use them.
+if (typeof globalThis.TextEncoder === "undefined") {
+    globalThis.TextEncoder = textCodec.TextEncoder;
+}
+if (typeof globalThis.TextDecoder === "undefined") {
+    globalThis.TextDecoder = textCodec.TextDecoder;
+}
+if (typeof globalThis.Buffer === "undefined") {
+    globalThis.Buffer = bufferCore.Buffer;
+}
+abort.install();
+eventLoop.install();
+
+// Engine library cores: each registers its routing state on load. They no
+// longer publish legacy globals (NC0.8); services require() the module they use.
 require("./internal/skynet-core.js");
+require("./internal/net-core.js");
+require("./internal/net-helper-core.js");
+require("./internal/crypt-core.js");
+require("./internal/http-core.js");
+require("./internal/websocket-core.js");
+require("./internal/fs-core.js");
+require("./builtins/skyjs/cluster.js");
+require("./builtins/skyjs/gateserver.js");
 
 function assertReadyGlobal(name) {
     if (typeof globalThis[name] === "undefined") {
@@ -20,21 +44,10 @@ function assertReadyGlobal(name) {
 
 function runMain(moduleSystem, entry, param) {
     register(moduleSystem);
-    eventLoop.install();
     processModule.install();
-    abort.install();
     globalThis.global = globalThis;
     globalThis.snjsParam = param;
     globalThis.__snjs_event_loop_tick = eventLoop.tick;
-    if (typeof globalThis.TextEncoder === "undefined") {
-        globalThis.TextEncoder = textCodec.TextEncoder;
-    }
-    if (typeof globalThis.TextDecoder === "undefined") {
-        globalThis.TextDecoder = textCodec.TextDecoder;
-    }
-    if (typeof globalThis.Buffer === "undefined") {
-        globalThis.Buffer = bufferCore.Buffer;
-    }
     const consoleObject = require("./builtins/console.js");
     globalThis.console = consoleObject;
     assertReadyGlobal("console");

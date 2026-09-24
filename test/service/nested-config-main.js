@@ -2,7 +2,7 @@
 // Exercises every JSON type (number/float/bool/string/null/object/array/mixed)
 // plus nested objects, standard config keys, and the deep-frozen guarantee.
 // Prints [PASS]/[FAIL] per assertion and a NESTED CONFIG TEST PASSED marker.
-// Uses the global `skynet` (js/skynet.js), like the other test services --
+// Uses the global `skynet` installed by bootstrap, like other test services --
 // snjs eval's scripts as global code, so no ES `import` here.
 "use strict";
 

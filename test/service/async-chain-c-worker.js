@@ -1,5 +1,5 @@
 // Async reentry acceptance: C asks D to call back into the waiting B service.
-const dH = skynetcore.intCommand("LAUNCH", "snjs test/service/async-chain-d-worker.js");
+const dH = skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/async-chain-d-worker.js");
 
 skynet.start(() => {
     skynet.dispatch("text", async (msg) => {

@@ -3,7 +3,7 @@
 // produced/consumed here with skynet.pack/unpack.
 //
 // NC0.7 transition: this is a CJS module installed by the legacy lazy loader
-// via js/skynet.js; it is also the require('skyjs/cluster') internal entry.
+// It is also the require('skyjs/cluster') internal entry.
 //
 // Usage:
 //   cluster.init()                       locate ".clusterd" (must be launched)
@@ -16,12 +16,15 @@
 (function () {
     "use strict";
 
+    const skynetCore = require("../../internal/skynet-core.js");
+    const hooks = require("../../internal/runtime-hooks.js");
+    const skynetcore = globalThis.skynetcore;
     const PTYPE_TEXT = 0;
     const CLUSTER_TIMEOUT = 3000;  // 30 seconds in centiseconds
     let clusterd = 0;
     const pending = new Map();   // js_session -> { resolve, reject }
 
-    __snjs_set_cluster_handlers(
+    hooks.setClusterHandlers(
         (session, msg) => {
             const p = pending.get(session);
             if (p) {
@@ -39,7 +42,7 @@
     );
 
     function init() {
-        clusterd = skynetcore.intCommand("QUERY", ".clusterd");
+        clusterd = skynetcore.runtime.intCommand("QUERY", ".clusterd");
         if (!clusterd) throw new Error("cluster: .clusterd not found, launch skyclusterd first");
     }
 
@@ -55,7 +58,7 @@
             msg.set(head, 0);
             msg.set(payloadBytes, head.length);
         }
-        const r = skynetcore.send(clusterd, PTYPE_TEXT, msg.buffer, session);
+        const r = skynetcore.runtime.send(clusterd, PTYPE_TEXT, msg.buffer, session);
         if (r < 0) {
             throw new Error("cluster: send to clusterd failed");
         }
@@ -63,11 +66,11 @@
 
     // fire-and-forget variant: generates its own session, ignores result
     function rawCmdFire(line) {
-        const s = skynetcore.genId();
+        const s = skynetcore.runtime.genId();
         const head = new Uint8Array(line.length + 1);
         for (let i = 0; i < line.length; i++) head[i] = line.charCodeAt(i) & 0xff;
         head[line.length] = 10;  // '\n'
-        skynetcore.send(clusterd, PTYPE_TEXT, head.buffer, s);
+        skynetcore.runtime.send(clusterd, PTYPE_TEXT, head.buffer, s);
     }
 
     function addrStr(addr) {
@@ -91,11 +94,11 @@
             rawCmdFire("register " + name);
         },
         call(node, addr, ...vals) {
-            const payload = new Uint8Array(skynet.pack(...vals));
+            const payload = new Uint8Array(skynetcore.seri.pack(...vals));
             return new Promise((resolve, reject) => {
-                const session = skynetcore.genId();
+                const session = skynetcore.runtime.genId();
                 pending.set(session, {
-                    resolve: (ab) => resolve(skynet.unpack(ab)),
+                    resolve: (ab) => resolve(skynetcore.seri.unpack(ab)),
                     reject,
                 });
                 try {
@@ -105,7 +108,7 @@
                     reject(e);
                     return;
                 }
-                skynet.timeout(CLUSTER_TIMEOUT, () => {
+                skynetCore.timeout(CLUSTER_TIMEOUT, () => {
                     if (pending.has(session)) {
                         pending.delete(session);
                         reject(new Error("cluster.call timeout: node=" + node + " addr=" + addr));
@@ -114,21 +117,21 @@
             });
         },
         send(node, addr, ...vals) {
-            const payload = new Uint8Array(skynet.pack(...vals));
-            const s = skynetcore.genId();
+            const payload = new Uint8Array(skynetcore.seri.pack(...vals));
+            const s = skynetcore.runtime.genId();
             try {
                 rawCmd(s, "push " + node + " " + addrStr(addr), payload);
             } catch (_) {
                 // fire-and-forget: log but do not propagate
-                skynetcore.error("cluster.send failed: node=" + node + " addr=" + addr);
+                skynetcore.runtime.error("cluster.send failed: node=" + node + " addr=" + addr);
             }
         },
         query(node, name) {
-            const payload = new Uint8Array(skynet.pack(name));
+            const payload = new Uint8Array(skynetcore.seri.pack(name));
             return new Promise((resolve, reject) => {
-                const session = skynetcore.genId();
+                const session = skynetcore.runtime.genId();
                 pending.set(session, {
-                    resolve: (ab) => resolve(skynet.unpack(ab)[0]),
+                    resolve: (ab) => resolve(skynetcore.seri.unpack(ab)[0]),
                     reject,
                 });
                 try {
@@ -138,7 +141,7 @@
                     reject(e);
                     return;
                 }
-                skynet.timeout(CLUSTER_TIMEOUT, () => {
+                skynetCore.timeout(CLUSTER_TIMEOUT, () => {
                     if (pending.has(session)) {
                         pending.delete(session);
                         reject(new Error("cluster.query timeout: node=" + node + " name=" + name));
@@ -147,7 +150,6 @@
             });
         },
     };
-    globalThis.cluster = cluster;
     if (typeof module !== "undefined" && module.exports) {
         module.exports = cluster;
     }

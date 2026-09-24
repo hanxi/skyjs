@@ -13,21 +13,21 @@ async function runScale() {
     const n = parseInt(globalThis.snjsParam, 10) || 0;
     const handles = [];
     for (let i = 0; i < n; i++) {
-        handles.push(skynetcore.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js"));
+        handles.push(skynetcore.runtime.intCommand("LAUNCH", "snjs test/service/bench-echo-worker.js"));
     }
     // one RTT each so the service actually loaded (snjs loads lazily)
     for (const h of handles) await skynet.call(h, "text", P20);
-    skynetcore.error("BENCH case=mem_scale n=" + n + " mps=0 js_mem=" + skynet.memStat());
-    skynetcore.error("BENCH_MEM_READY count=" + n);
+    skynetcore.runtime.error("BENCH case=mem_scale n=" + n + " mps=0 js_mem=" + skynet.memStat());
+    skynetcore.runtime.error("BENCH_MEM_READY count=" + n);
     // idle on purpose: the harness samples steady-state RSS then kills us
 }
 
 skynet.start(() => {
-    skynetcore.intCommand("LAUNCH", "driver .main 300 run x");
+    skynetcore.runtime.intCommand("LAUNCH", "driver .main 300 run x");
     skynet.dispatch("text", (msg) => {
         if (msg !== "run") return "OK";
         runScale().catch(e => {
-            skynetcore.error("BENCH_FAIL: " + (e && (e.message || e)));
+            skynetcore.runtime.error("BENCH_FAIL: " + (e && (e.message || e)));
         });
         return undefined;
     });

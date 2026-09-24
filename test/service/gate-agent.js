@@ -4,6 +4,8 @@
 // the session carries the connection fd.
 "use strict";
 
+const socket = require("../../js/internal/net-core.js");
+
 skynet.start(() => {
     skynet.dispatch("client", (msg, source, session) => {
         const fd = session;

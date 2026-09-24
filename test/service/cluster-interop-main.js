@@ -4,6 +4,8 @@
 // when our "start" arrives, so the query polls -- each poll is a single
 // connect attempt, matching the stock socketchannel semantics. Assertions
 // live in tools/run-interop.js.
+const cluster = require("../../js/builtins/skyjs/cluster.js");
+
 skynet.register("main");
 skynet.newservice("skyclusterd");
 cluster.init();
@@ -11,7 +13,7 @@ cluster.register("main");
 cluster.setNodes({ lua: "127.0.0.1:2530" });
 cluster.open(2528);
 cluster.register("svc1");
-skynetcore.intCommand("LAUNCH", "driver .main 300 start 0");
+skynetcore.runtime.intCommand("LAUNCH", "driver .main 300 start 0");
 
 skynet.start(() => {
     skynet.dispatch("text", async (msg) => {
@@ -24,16 +26,16 @@ skynet.start(() => {
             } catch (e) { await skynet.sleep(200); }    // lua node not up yet
         }
         if (!lh) {
-            skynetcore.error("INTEROP FAIL: lua node never resolved");
+            skynetcore.runtime.error("INTEROP FAIL: lua node never resolved");
             return "FAIL";
         }
-        skynetcore.error("JS2LUA handle=" + lh);
+        skynetcore.runtime.error("JS2LUA handle=" + lh);
         try {
             const r = await cluster.call("lua", "@main", "from-js", 33);
-            skynetcore.error("JS2LUA RESULT: " + JSON.stringify(r.map(v => v instanceof Map ? [...v.entries()] : v)));
+            skynetcore.runtime.error("JS2LUA RESULT: " + JSON.stringify(r.map(v => v instanceof Map ? [...v.entries()] : v)));
             return "INTEROP_OK";
         } catch (e) {
-            skynetcore.error("INTEROP FAIL: " + (e && e.message));
+            skynetcore.runtime.error("INTEROP FAIL: " + (e && e.message));
             return "FAIL";
         }
     });

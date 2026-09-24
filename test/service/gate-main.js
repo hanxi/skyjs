@@ -6,6 +6,8 @@
 // echo equals the concatenation of the sent payloads and prints GATE_OK.
 "use strict";
 
+const socket = require("../../js/internal/net-core.js");
+
 const PORT = 18855;
 
 function strBytes(s) {
@@ -57,7 +59,7 @@ async function runClient(tag) {
             recv = concatBytes([recv, chunk]);
             if (recv.length >= expected.length) resolveDone();
         }, () => {}, (fd, err) => {
-            skynetcore.error("CLIENT socket error " + err);
+            skynetcore.runtime.error("CLIENT socket error " + err);
         }, { binary: true });
 
         // frame 1: single packet
@@ -74,15 +76,15 @@ async function runClient(tag) {
     await done;
     const ok = bytesEqual(recv, expected);
     if (ok) {
-        skynetcore.error("GATE CLIENT " + tag + " OK " + recv.length + " bytes");
+        skynetcore.runtime.error("GATE CLIENT " + tag + " OK " + recv.length + " bytes");
     } else {
-        skynetcore.error("GATE FAIL " + tag + ": echo mismatch (" + recv.length + " vs " + expected.length + ")");
+        skynetcore.runtime.error("GATE FAIL " + tag + ": echo mismatch (" + recv.length + " vs " + expected.length + ")");
     }
     socket.close(id);
     return ok;
 }
 
-skynetcore.error("MAIN gate test starting");
+skynetcore.runtime.error("MAIN gate test starting");
 
 skynet.start(() => {
     skynet.dispatch("text", (m) => m);
@@ -95,6 +97,6 @@ skynet.timeout(1, async () => {
     // two concurrent clients exercise independent per-fd reassembly state
     const ok = await Promise.all([runClient("A"), runClient("B")]);
     if (ok.every(Boolean)) {
-        skynetcore.error("GATE_OK 2 clients x 5017 bytes");
+        skynetcore.runtime.error("GATE_OK 2 clients x 5017 bytes");
     }
 });

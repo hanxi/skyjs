@@ -10,7 +10,10 @@
 //   kick   fd             -> close fd
 "use strict";
 
-const gate = globalThis.gateserver;
+const socket = require("../../js/internal/net-core.js");
+const gateserver = require("../../js/builtins/skyjs/gateserver.js");
+
+const gate = gateserver;
 
 let watchdog = 0;
 const connection = new Map();   // fd -> { fd, ip, client, agent }
@@ -41,7 +44,7 @@ const handler = {
             skynet.redirect(c.agent, c.client, "client", fd, msg);
         } else {
             // no agent: hand the text to the watchdog (lossy, matches lua tostring)
-            skynet.send(watchdog, "lua", "socket", "data", fd, skynetcore.str(msg));
+            skynet.send(watchdog, "lua", "socket", "data", fd, skynetcore.seri.str(msg));
         }
     },
     disconnect(fd) {

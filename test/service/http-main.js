@@ -2,6 +2,12 @@
 // runs httpc client tests, prints HTTP <scenario> OK / HTTP FAIL markers.
 "use strict";
 
+const socket = require("../../js/internal/net-core.js");
+const httpCore = require("../../js/internal/http-core.js");
+const httpd = httpCore.httpd;
+const httpc = httpCore.httpc;
+const httpInternal = httpCore.httpInternal;
+
 let failCount = 0;
 
 function check(label, ok, detail) {

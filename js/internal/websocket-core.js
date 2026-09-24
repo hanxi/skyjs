@@ -15,8 +15,13 @@
     const GLOBAL_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     const MAX_FRAME_SIZE = 256 * 1024;   // 256 KB
 
-    const textEncoder = new TextEncoder();
-    const textDecoder = new TextDecoder("utf-8");
+    const textCodec = require("./text-codec.js");
+    const crypt = require("./crypt-core.js");
+    const netCore = require("./net-core.js");
+    const netHelper = require("./net-helper-core.js");
+    const httpCore = require("./http-core.js");
+    const textEncoder = new textCodec.TextEncoder();
+    const textDecoder = new textCodec.TextDecoder("utf-8");
 
     // ---- opcode tables (name↔value) ----
 
@@ -72,7 +77,7 @@
         wsPool.delete(ws.id);
         if (!ws.closed) {
             ws.closed = true;
-            try { socket.close(ws.fd); } catch (_) { /* ignore */ }
+            try { netCore.close(ws.fd); } catch (_) { /* ignore */ }
         }
     }
 
@@ -212,8 +217,8 @@
             else if (a1 !== undefined) f(ws.id, a1);
             else f(ws.id);
         } catch (e) {
-            if (e === sockethelper.socketError) throw e;
-            skynetcore.error("websocket handler." + method + " error: " + (e && e.stack || e));
+            if (e === netHelper.socketError) throw e;
+            skynetcore.runtime.error("websocket handler." + method + " error: " + (e && e.stack || e));
         }
     }
 
@@ -226,7 +231,7 @@
             header = upgradeOps.header;
             url = upgradeOps.url;
         } else {
-            const hdr = await httpInternal.recvHeader(ws.reader);
+            const hdr = await httpCore.httpInternal.recvHeader(ws.reader);
             if (!hdr.ok) return { code: 413 };
             if (hdr.lines.length === 0) return { code: 400 };
 
@@ -247,7 +252,7 @@
                 return { code: 505 };
             }
 
-            header = httpInternal.parseHeader(hdr.lines, 1, {});
+            header = httpCore.httpInternal.parseHeader(hdr.lines, 1, {});
         }
 
         if (!header) return { code: 400 };
@@ -345,7 +350,7 @@
         ws.reader.write(req);
 
         // read 101 response
-        const hdr = await httpInternal.recvHeader(ws.reader);
+        const hdr = await httpCore.httpInternal.recvHeader(ws.reader);
         if (!hdr.ok || hdr.lines.length === 0) {
             throw new Error("websocket handshake: recv header failed");
         }
@@ -362,7 +367,7 @@
             );
         }
 
-        const recvHdr = httpInternal.parseHeader(hdr.lines, 1, {});
+        const recvHdr = httpCore.httpInternal.parseHeader(hdr.lines, 1, {});
         if (!recvHdr) {
             throw new Error(
                 "websocket handshake: invalid response header"
@@ -411,7 +416,7 @@
         if (hs.code !== null) {
             // handshake failed: send HTTP error response
             const wf = function (d) { ws.reader.write(d); };
-            httpd.writeResponse(wf, hs.code, hs.reason || "");
+            httpCore.httpd.writeResponse(wf, hs.code, hs.reason || "");
             tryHandle(ws, "close");
             return;
         }
@@ -532,24 +537,24 @@
         if (options && options.reader) {
             reader = options.reader;
         } else {
-            reader = sockethelper.reader(fd);
+            reader = netHelper.reader(fd);
         }
 
         if (protocol === "wss") {
             if (!skynetcore.tls) {
-                socket.close(fd);
+                netCore.close(fd);
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"
                 );
             }
             const tlsOpts = (options && options.tls) || {};
             if (!tlsOpts.certfile || !tlsOpts.keyfile) {
-                socket.close(fd);
+                netCore.close(fd);
                 throw new Error(
                     "WSS server requires options.tls.certfile and options.tls.keyfile"
                 );
             }
-            await sockethelper.tlsUpgrade(
+            await netHelper.tlsUpgrade(
                 reader, null, true, tlsOpts.certfile, tlsOpts.keyfile
             );
         }
@@ -568,7 +573,7 @@
             if (!closed) {
                 closeWebsocket(ws);
             }
-            if (e === sockethelper.socketError) {
+            if (e === netHelper.socketError) {
                 if (closed) {
                     tryHandle(ws, "close");
                 } else {
@@ -596,20 +601,20 @@
     wsApi.connect = async function (url, header, timeout, options) {
         const parsed = parseWsUrl(url);
 
-        const fd = await sockethelper.connect(
+        const fd = await netHelper.connect(
             parsed.hostAddr, parsed.hostPort, timeout
         );
-        const reader = sockethelper.reader(fd);
+        const reader = netHelper.reader(fd);
 
         if (parsed.protocol === "wss") {
             if (!skynetcore.tls) {
-                socket.close(fd);
+                netCore.close(fd);
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"
                 );
             }
             const ca = (options && options.caFile) || undefined;
-            await sockethelper.tlsUpgrade(
+            await netHelper.tlsUpgrade(
                 reader, parsed.hostname, false, null, null, ca
             );
         }
@@ -776,7 +781,6 @@
         return isWsClosed(id);
     };
 
-    globalThis.websocket = wsApi;
     if (typeof module !== "undefined" && module.exports) {
         module.exports = wsApi;
     }

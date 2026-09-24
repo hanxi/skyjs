@@ -39,7 +39,22 @@ if (Buffer.from("aGVsbG8=", "base64").toString() !== "hello" ||
     throw new Error("Buffer failed");
 }
 
-skynetcore.error("GLOBALS_OK events=1 buffer=1 abort=1");
+// NC0.8 exit criteria: only §3 globals (+skynet/LuaTable) remain, and the
+// skynetcore namespace exposes grouped names only.
+// No legacy SkyJS globals may remain (language intrinsics stay, of course).
+for (const name of ["io", "httpd", "httpc", "httpInternal", "websocket",
+    "socket", "sockethelper", "crypt", "cluster", "gateserver", "require",
+    "module", "exports", "__filename", "__dirname"]) {
+    if (globalThis[name] !== undefined) {
+        throw new Error("legacy global still present: " + name);
+    }
+}
+const namespaces = Object.keys(skynetcore).sort().join(",");
+if (namespaces !== "crypt,features,fs,net,netpack,runtime,seri") {
+    throw new Error("skynetcore namespace mismatch: " + namespaces);
+}
+
+skynetcore.runtime.error("GLOBALS_OK events=1 buffer=1 abort=1");
 
 skynet.start(() => {
     skynet.dispatch("text", (msg) => "GLOBALS:" + msg);

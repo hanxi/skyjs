@@ -16,7 +16,7 @@ console.time("T");
 console.timeLog("T");
 console.timeEnd("T");
 console.timeEnd("NOPE");
-skynetcore.error("CONSOLE_OK");
+skynetcore.runtime.error("CONSOLE_OK");
 skynet.register("main");
 
 skynet.start(() => {

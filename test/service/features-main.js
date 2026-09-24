@@ -51,7 +51,7 @@
         throw new Error("runtime.environ() did not expose PATH");
     }
 
-    skynetcore.error("FEATURES_OK version=" + features.version +
+    skynetcore.runtime.error("FEATURES_OK version=" + features.version +
         " platform=" + info.platform + " arch=" + info.arch);
 })();
 

@@ -6,9 +6,11 @@
 (function () {
     "use strict";
 
+    const hooks = require("./runtime-hooks.js");
+    const skynetCore = require("./skynet-core.js");
     const DATA = 1, CONNECT = 2, CLOSE = 3, ACCEPT = 4, ERROR = 5;
 
-    const handlers = new Map();   // socket id -> { on_data, on_connect, on_close, on_error, on_accept }
+    const handlers = new Map();
 
     function dispatchEvent(m) {
         const h = handlers.get(m.id);
@@ -17,7 +19,7 @@
             case DATA:
                 // C delivers DATA as an ArrayBuffer; decode to a string unless
                 // this connection opted into per-connection binary mode
-                if (h.onData) h.onData(h.binary ? m.data : skynetcore.str(m.data), m.ud);
+                if (h.onData) h.onData(h.binary ? m.data : skynetcore.seri.str(m.data), m.ud);
                 break;
             case CONNECT:
                 // resume_socket() re-reports OPEN with a status text; only a
@@ -41,9 +43,9 @@
         }
     }
 
-    __snjs_set_socket_handler(dispatchEvent);
+    hooks.setSocketHandler(dispatchEvent);
 
-    const sock = skynetcore.socket;
+    const sock = skynetcore.net;
 
     const socketObject = {
         listen(host, port, onAccept, backlog) {
@@ -99,8 +101,5 @@
             sock.shutdown(id | 0);
         },
     };
-    globalThis.socket = socketObject;
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = socketObject;
-    }
+    module.exports = socketObject;
 })();

@@ -2,6 +2,8 @@
 // known test vectors and prints CRYPT <name> OK / CRYPT FAIL markers.
 "use strict";
 
+const crypt = require("../../js/internal/crypt-core.js");
+
 let failCount = 0;
 
 function hex(ab) {

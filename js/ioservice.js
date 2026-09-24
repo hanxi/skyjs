@@ -1,5 +1,5 @@
 // skyjs async IO service (Phase C).
-// A dedicated skynet service that executes synchronous io.* calls on behalf
+// A dedicated skynet service that executes synchronous fs calls on behalf
 // of callers, turning blocking file I/O into non-blocking skynet.call RPCs.
 //
 // Protocol: PTYPE_LUA (seri pack/unpack).
@@ -10,6 +10,10 @@
 // Binary data (read_file result, write_file/append_file input) is transported
 // as base64 strings because js-seri does not support ArrayBuffer round-trip.
 // stat() returns a JSON string; readdir() returns a JSON string (array).
+"use strict";
+
+const crypt = require("./internal/crypt-core.js");
+const io = require("./internal/fs-core.js");
 
 skynet.start(() => {
     skynet.dispatch("lua", (msg) => {

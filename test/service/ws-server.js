@@ -3,6 +3,9 @@
 // Special message "close_me" triggers a server-initiated close.
 "use strict";
 
+const socket = require("../../js/internal/net-core.js");
+const websocket = require("../../js/internal/websocket-core.js");
+
 const PORT = 18870;
 
 skynet.start(() => {

@@ -1,7 +1,7 @@
 "use strict";
 
-skynetcore.error("PROCESS_NATURAL_START");
+skynetcore.runtime.error("PROCESS_NATURAL_START");
 setTimeout(() => {
     process.exitCode = 7;
-    skynetcore.command("ABORT");
+    skynetcore.runtime.command("ABORT");
 }, 10);

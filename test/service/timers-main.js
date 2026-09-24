@@ -5,13 +5,13 @@ let finished = 0;
 
 function fail(label) {
     ok = false;
-    skynetcore.error("TIMERS_FAIL " + label);
+    skynetcore.runtime.error("TIMERS_FAIL " + label);
 }
 
 function finish() {
     finished += 1;
     if (finished !== 3) return;
-    if (ok) skynetcore.error("TIMERS_OK order=nextTick,nextTick2,promise,timer");
+    if (ok) skynetcore.runtime.error("TIMERS_OK order=nextTick,nextTick2,promise,timer");
 }
 
 // 1. pure timer program: no external message drives the loop.

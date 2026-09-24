@@ -22,7 +22,7 @@ function nowMs() {
 
 function reportCallbackError(prefix, err) {
     const detail = err && err.stack ? err.stack : String(err);
-    skynetcore.error(prefix + ": " + detail);
+    skynetcore.runtime.error(prefix + ": " + detail);
 }
 
 function normalizeDelay(delay) {
