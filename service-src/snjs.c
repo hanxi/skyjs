@@ -46,6 +46,10 @@
 
 #define MODAPI __attribute__((visibility("default")))
 
+#ifndef SKYJS_VERSION
+#define SKYJS_VERSION "0.1.0"
+#endif
+
 #define DEFAULT_MEM_REPORT (1024 * 1024 * 32)
 #define JS_HDR sizeof(struct js_block)
 
@@ -411,115 +415,6 @@ js_redirect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 	return JS_NewInt32(ctx, r);
 }
 
-/* ------------------------------------------------------- socket bridge */
-
-static JSValue
-js_sock_listen(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val;
-	const char *host = JS_ToCString(ctx, argv[0]);
-	if (host == NULL) return JS_EXCEPTION;
-	int32_t port, backlog = 64;
-	if (JS_ToInt32(ctx, &port, argv[1])) { JS_FreeCString(ctx, host); return JS_EXCEPTION; }
-	if (argc > 2) JS_ToInt32(ctx, &backlog, argv[2]);
-	int id = skynet_socket_listen(l->ctx, host, port, backlog);
-	JS_FreeCString(ctx, host);
-	return JS_NewInt32(ctx, id);
-}
-
-static JSValue
-js_sock_connect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val;
-	const char *host = JS_ToCString(ctx, argv[0]);
-	if (host == NULL) return JS_EXCEPTION;
-	int32_t port;
-	if (JS_ToInt32(ctx, &port, argv[1])) { JS_FreeCString(ctx, host); return JS_EXCEPTION; }
-	int id = skynet_socket_connect(l->ctx, host, port);
-	JS_FreeCString(ctx, host);
-	return JS_NewInt32(ctx, id);
-}
-
-static JSValue
-js_sock_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val; (void)argc;
-	int32_t id;
-	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
-	skynet_socket_start(l->ctx, id);
-	return JS_UNDEFINED;
-}
-
-// send(id, data): buffer ownership transfers to the socket layer. data may be
-// a string (UTF-8) or an ArrayBuffer (binary-safe, per-connection binary).
-static JSValue
-js_sock_send(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val;
-	if (argc < 2) {
-		return JS_ThrowTypeError(ctx, "skynetcore.socket.send(id, data)");
-	}
-	int32_t id;
-	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
-	size_t sz = 0;
-	void *buf = NULL;
-	if (JS_IsArrayBuffer(argv[1])) {
-		uint8_t *p = JS_GetArrayBuffer(ctx, &sz, argv[1]);
-		if (p == NULL) return JS_EXCEPTION;
-		buf = skynet_malloc(sz);
-		memcpy(buf, p, sz);
-	} else {
-		const char *data = JS_ToCStringLen(ctx, &sz, argv[1]);
-		if (data == NULL) return JS_EXCEPTION;
-		buf = skynet_malloc(sz);
-		memcpy(buf, data, sz);
-		JS_FreeCString(ctx, data);
-	}
-	int r = skynet_socket_send(l->ctx, id, buf, (int)sz);
-	return JS_NewInt32(ctx, r);
-}
-
-static JSValue
-js_sock_nodelay(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val; (void)argc;
-	int32_t id;
-	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
-	skynet_socket_nodelay(l->ctx, id);
-	return JS_UNDEFINED;
-}
-
-// enable netpack mode: PTYPE_SOCKET DATA is routed through the C frame buffer
-// (js_netpack_dispatch) instead of being delivered as a raw payload. Used by
-// gateserver.js; one flag per service (a service is either a gate or not).
-static JSValue
-js_sock_netpack_mode(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val; (void)argc; (void)argv;
-	l->socket_netpack = 1;
-	return JS_UNDEFINED;
-}
-
-static JSValue
-js_sock_close(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val; (void)argc;
-	int32_t id;
-	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
-	skynet_socket_close(l->ctx, id);
-	return JS_UNDEFINED;
-}
-
-static JSValue
-js_sock_shutdown(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	struct snjs *l = getinst(ctx);
-	(void)this_val; (void)argc;
-	int32_t id;
-	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
-	skynet_socket_shutdown(l->ctx, id);
-	return JS_UNDEFINED;
-}
-
 static const char lazy_setup_js[] =
 "(function() {\n"
 "    const P = globalThis.__snjs_lazy_paths;\n"
@@ -574,6 +469,58 @@ js_load_runtime(JSContext *ctx, JSValueConst this_val,
 	return JS_UNDEFINED;
 }
 
+static JSValue
+js_feature(JSContext *ctx, int available, const char *reason, const char *version) {
+	JSValue feature = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, feature, "available", JS_NewBool(ctx, available));
+	if (reason != NULL) {
+		JS_SetPropertyStr(ctx, feature, "reason", JS_NewString(ctx, reason));
+	}
+	if (version != NULL) {
+		JS_SetPropertyStr(ctx, feature, "version", JS_NewString(ctx, version));
+	}
+	return feature;
+}
+
+static JSValue
+js_features(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val; (void)argc; (void)argv;
+
+	JSValue features = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, features, "version", JS_NewString(ctx, SKYJS_VERSION));
+	JS_SetPropertyStr(ctx, features, "sqlite",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "httpStream",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "fsAsync",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "archive",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "subprocess",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "media",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	JS_SetPropertyStr(ctx, features, "tag",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+#ifdef USE_OPENSSL
+	JS_SetPropertyStr(ctx, features, "cryptExt",
+		js_feature(ctx, 1, NULL, NULL));
+#else
+	JS_SetPropertyStr(ctx, features, "cryptExt",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+#endif
+	JSValue native_ext = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, native_ext, "available", JS_NewBool(ctx, 0));
+	JS_SetPropertyStr(ctx, native_ext, "reason",
+		JS_NewString(ctx, "ERR_UNSUPPORTED_PLATFORM"));
+	JS_SetPropertyStr(ctx, native_ext, "dynamic", JS_NewBool(ctx, 0));
+	JS_SetPropertyStr(ctx, native_ext, "static", JS_NewBool(ctx, 0));
+	JS_SetPropertyStr(ctx, features, "nativeExt", native_ext);
+	JS_SetPropertyStr(ctx, features, "pluginSandbox",
+		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+	return features;
+}
+
 static void
 register_bridge(struct snjs *l) {
 	JSValue obj = JS_NewObject(l->jsc);
@@ -587,28 +534,15 @@ register_bridge(struct snjs *l) {
 	JS_SetPropertyStr(l->jsc, obj, "response", JS_NewCFunction(l->jsc, js_response, "response", 3));
 	JS_SetPropertyStr(l->jsc, obj, "errorResponse", JS_NewCFunction(l->jsc, js_error_response, "errorResponse", 2));
 	JS_SetPropertyStr(l->jsc, obj, "redirect", JS_NewCFunction(l->jsc, js_redirect, "redirect", 5));
-	JSValue sock = JS_NewObject(l->jsc);
-	JS_SetPropertyStr(l->jsc, sock, "listen", JS_NewCFunction(l->jsc, js_sock_listen, "listen", 3));
-	JS_SetPropertyStr(l->jsc, sock, "connect", JS_NewCFunction(l->jsc, js_sock_connect, "connect", 2));
-	JS_SetPropertyStr(l->jsc, sock, "start", JS_NewCFunction(l->jsc, js_sock_start, "start", 1));
-	JS_SetPropertyStr(l->jsc, sock, "send", JS_NewCFunction(l->jsc, js_sock_send, "send", 2));
-	JS_SetPropertyStr(l->jsc, sock, "close", JS_NewCFunction(l->jsc, js_sock_close, "close", 1));
-	JS_SetPropertyStr(l->jsc, sock, "shutdown", JS_NewCFunction(l->jsc, js_sock_shutdown, "shutdown", 1));
-	JS_SetPropertyStr(l->jsc, sock, "nodelay", JS_NewCFunction(l->jsc, js_sock_nodelay, "nodelay", 1));
-	JS_SetPropertyStr(l->jsc, sock, "netpackMode", JS_NewCFunction(l->jsc, js_sock_netpack_mode, "netpackMode", 0));
-	JS_SetPropertyStr(l->jsc, obj, "socket", sock);
-	// js-netpack extensions (gateserver frame buffer, see js-netpack.c)
-	JSValue netpack = JS_NewObject(l->jsc);
-	JS_SetPropertyStr(l->jsc, netpack, "pop", JS_NewCFunction(l->jsc, js_netpack_pop, "pop", 0));
-	JS_SetPropertyStr(l->jsc, netpack, "pack", JS_NewCFunction(l->jsc, js_netpack_pack, "pack", 1));
-	JS_SetPropertyStr(l->jsc, netpack, "clear", JS_NewCFunction(l->jsc, js_netpack_clear, "clear", 0));
-	JS_SetPropertyStr(l->jsc, obj, "netpack", netpack);
+	JS_SetPropertyStr(l->jsc, obj, "features",
+		JS_NewCFunction(l->jsc, js_features, "features", 0));
+
+	register_net_bridge(l->jsc, obj);
 	// js-runtime primitives (process/module-source foundation)
 	register_runtime_bridge(l, obj);
+
 	// js-seri extensions (pack/unpack, see js-seri.c)
-	JS_SetPropertyStr(l->jsc, obj, "pack", JS_NewCFunction(l->jsc, js_seri_pack, "pack", 0));
-	JS_SetPropertyStr(l->jsc, obj, "unpack", JS_NewCFunction(l->jsc, js_seri_unpack, "unpack", 1));
-	JS_SetPropertyStr(l->jsc, obj, "str", JS_NewCFunction(l->jsc, js_seri_ab2str, "str", 1));
+	register_seri_bridge(l->jsc, obj);
 	JS_SetPropertyStr(l->jsc, obj, "__load_runtime",
 		JS_NewCFunction(l->jsc, js_load_runtime, "__load_runtime", 1));
 	JSValue g = JS_GetGlobalObject(l->jsc);

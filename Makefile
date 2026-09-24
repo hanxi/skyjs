@@ -125,6 +125,7 @@ QJS_SRC := 3rd/quickjs/quickjs.c 3rd/quickjs/libregexp.c 3rd/quickjs/libunicode.
 QJS_OBJ := $(addprefix build/qjs_,$(notdir $(QJS_SRC:.c=.o)))
 
 TARGET := skyjs$(EXE_SUFFIX)
+VERSION := $(shell sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -1)
 
 # NC0.1 deterministic module manifest. The generator lists its dependencies so
 # Make can regenerate the manifest before any new internal/builtin module is
@@ -139,7 +140,7 @@ MODULE_MANIFEST_DEPS := $(shell node tools/gen-module-manifest.js --list-files)
 BUILTIN_OBJ :=
 STATIC_LDFLAGS :=
 ifeq ($(STATIC),1)
-  BUILTIN_OBJ := build/snjs.o build/seri.o build/netpack.o build/crypto.o \
+  BUILTIN_OBJ := build/snjs.o build/seri.o build/net.o build/crypto.o \
     build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o build/svc_logger.o \
     build/svc_skyclusterd.o build/builtin-dl.o
   ifeq ($(PLAT),macosx)
@@ -190,12 +191,12 @@ build/qjs_%.o: 3rd/quickjs/%.c | build
 	$(CC) $(CFLAGS) -fPIC -D_GNU_SOURCE -I3rd/quickjs -c $< -o $@
 
 build/snjs.o: service-src/snjs.c service-src/snjs-internal.h | build
-	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
+	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@ -DSKYJS_VERSION=\"$(VERSION)\"
 
 build/seri.o: service-src/js-seri.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/netpack.o: service-src/js-netpack.c service-src/snjs-internal.h | build
+build/net.o: service-src/js-net.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
 build/crypto.o: service-src/js-crypto.c service-src/snjs-internal.h | build
@@ -208,7 +209,7 @@ build/io.o: service-src/js-io.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
 build/runtime.o: service-src/js-runtime.c service-src/snjs-internal.h | build
-	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
+	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -DSKYJS_VERSION=\"$(VERSION)\" -c $< -o $@
 
 # STATIC-only object builds of logger + skyclusterd (same flags as their .so
 # rules; distinct names avoid the build/skynet_%.o pattern that targets
@@ -259,7 +260,7 @@ build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/crypt.js js/sockethelper.
 build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
-cservice/snjs.so: build/snjs.o build/seri.o build/netpack.o build/crypto.o \
+cservice/snjs.so: build/snjs.o build/seri.o build/net.o build/crypto.o \
 	build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
 	$(CC) $(CFLAGS) $(SHARED) -fvisibility=hidden -o $@ $^ $(OPENSSL_LDFLAGS) -lm
 

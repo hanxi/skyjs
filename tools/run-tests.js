@@ -58,6 +58,8 @@ const SUITE = [
         must: ["MODULE_SYSTEM_OK cache=1 cycles=a/b locals=true file=true"] },
     { name: "features", config: "test/config-features.json",
         mustRe: [/FEATURES_OK version=0\.1\.0 platform=(?:darwin|linux) arch=(?:arm64|x64)/] },
+    { name: "skynetcore_groups", config: "test/config-skynetcore-groups.json",
+        must: ["SKYNETCORE_GROUPS_OK fs=1 net=1 seri=1 features=1"] },
     { name: "echo", config: "test/config-echo.json",
         must: ["DRIVER RESP: JS_ECHO:hello_from_js"] },
     { name: "async", config: "test/config-async.json",

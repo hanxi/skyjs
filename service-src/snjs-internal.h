@@ -31,7 +31,7 @@ struct snjs {
 	JSValue lua_table_build_fn;  // (array, hashFlat) => LuaTable (unpack target)
 	JSValue lua_table_parts_fn;  // (v) => [arrayRef, hashFlat] | null (LuaTable pack)
 
-	// js-netpack: gateserver frame buffer (lazily allocated per service)
+	// js-net.c: gateserver frame buffer (lazily allocated per service)
 	struct np_queue *netpack_q;   // 2-byte framed packet ring + per-fd reassembly
 	int socket_netpack;           // socket DATA is routed through js_netpack_dispatch
 };
@@ -47,12 +47,10 @@ JSValue js_seri_pack(JSContext *ctx, JSValueConst this_val, int argc, JSValueCon
 JSValue js_seri_unpack(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 JSValue js_seri_ab2str(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 
-// js-netpack.c exports (gateserver frame buffer; see register_bridge and worker_cb)
+// js-net.c exports (socket + netpack frame buffer; see register_bridge and worker_cb)
+void register_net_bridge(JSContext *ctx, JSValue obj);
 int js_netpack_dispatch(struct snjs *l, struct skynet_socket_message *sm, size_t sz, JSValue *out);
 void js_netpack_free(struct snjs *l);
-JSValue js_netpack_pop(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
-JSValue js_netpack_pack(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
-JSValue js_netpack_clear(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 
 // js-crypto.c exports (crypto namespace, see register_crypto_bridge)
 void register_crypto_bridge(JSContext *ctx, JSValue global);
@@ -62,7 +60,10 @@ void register_crypto_bridge(JSContext *ctx, JSValue global);
 void register_tls_bridge(JSContext *ctx, JSValue global);
 #endif
 
-// js-io.c exports (io namespace, see register_io_bridge)
+// js-io.c exports (fs namespace, see register_io_bridge)
 void register_io_bridge(JSContext *ctx, JSValue global);
+
+// js-seri.c exports (seri namespace, see register_seri_bridge)
+void register_seri_bridge(JSContext *ctx, JSValue obj);
 
 #endif

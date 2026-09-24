@@ -16,7 +16,7 @@ skyjs/                      # 顶层项目(git 主仓库,运行时 CWD;顶层均
 ├── service-src/
 │   ├── snjs.c              # QuickJS 服务加载器(quickjs 静态编入,仅导出 snjs_* 四符号)
 │   ├── js-seri.c           # lua-seri 二进制格式兼容层(与原版字节对拍通过)
-│   ├── js-netpack.c        # gate 2 字节帧缓冲(per-fd 重组 + 队列)
+│   ├── js-net.c            # skynetcore.net + gate 2 字节帧缓冲(per-fd 重组 + 队列)
 │   └── skyclusterd.c       # cluster 重写(线协议兼容原版 lua-cluster.c)
 ├── cservice/               # 编译产物(logger.so/snjs.so/skyclusterd.so)
 ├── js/                     # JS 库:skynet.js/socket.js/cluster.js/gateserver.js

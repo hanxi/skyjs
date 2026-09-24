@@ -40,7 +40,7 @@ AGENTS.md 的详细版：编码规范全文、C/JS 边界、验收测试与排�
 
 ```text
 platform/       # 内核替代层：env.c / main.c / lauxlib.h(纯 stub) / builtin-dl.c(STATIC=1 用)
-service-src/    # snjs.c(QuickJS 服务加载器) / js-seri.c(序列化) / js-netpack.c(gate 帧缓冲) / skyclusterd.c(cluster)
+service-src/    # snjs.c(QuickJS 服务加载器) / js-seri.c(序列化) / js-net.c(net + gate 帧缓冲) / skyclusterd.c(cluster)
 cservice/       # 编译产物 logger.so / snjs.so / skyclusterd.so（gitignore）
 js/             # JS 运行时库：skynet.js → socket.js → cluster.js → gateserver.js（按序加载）；
                 # skyjs.d.ts 为全局注入面的 TS 类型声明（与库同源维护）
@@ -62,10 +62,11 @@ build/          # 中间产物（gitignore）
 > [infra/01-conventions.md](infra/01-conventions.md) §2–3。本节在重构落地前保持
 > **现状口径**，与目标命名冲突时以目标设计为准，重构时同步改写本节。
 
-`snjs.c` 向 JS 注入全局 `skynetcore` 对象：`send / redirect / command / intCommand / genId / now /
-error / mem / response / errorResponse / pack / unpack / str / readFile / writeFile`，
-以及 `skynetcore.socket`（`listen/connect/start/send/close/shutdown/nodelay/netpackMode`）与
-`skynetcore.netpack`（`pop/pack/clear`）。
+`snjs.c` 向 JS 注入全局 `skynetcore` 对象。NC0.3 起按能力分组：`runtime`、
+`fs`、`net`、`seri`（以及 `crypt`/`tls`/`netpack`）；旧扁平名
+`send / redirect / command / intCommand / genId / now / error / mem / response /
+errorResponse / pack / unpack / str` 与旧 `io`/`socket` 别名在 NC0.8 收敛前继续双挂。
+`skynet.features()` 返回当前构建能力表，版本号由构建期注入。
 
 JS 侧加载顺序（env 键 `jsLoader` → `jsSocket` → `jsCluster` → `jsGateserver` → 用户脚本）：
 `js/skynet.js` 定义 `globalThis.skynet` 与内部路由；`socket.js`/`cluster.js`/`gateserver.js`
@@ -181,7 +182,7 @@ seri → JS（unpack）类型映射（1:1，接收侧无歧义）：
 ## Gate / netpack / redirect
 
 `js/gateserver.js` 对齐原版 `snax/gateserver.lua` 的核心连接状态机，使用
-`service-src/js-netpack.c` 处理 2 字节大端长度帧。netpack 队列为 per-service 单例：
+`service-src/js-net.c` 处理 2 字节大端长度帧。netpack 队列为 per-service 单例：
 DATA 到达时 C 层直接接管 `sm->buffer`，单包/分片按 fd 重组，多包进入 ring queue；
 `netpack.pop()` 把完整包复制为 ArrayBuffer 后释放 C 缓冲，`netpack.clear()` 与
 `snjs_release` 释放所有 queued/uncomplete 缓冲。gate 服务退出前无需 JS 手动析构，

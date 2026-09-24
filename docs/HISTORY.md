@@ -203,3 +203,12 @@
     访问 `internal/*`/`node:internal/*` 会被拒绝。新增 module-system 场景覆盖缓存、
     循环、五件套、JSON/目录、权限与泄漏；ESLint 允许 QuickJS 侧 CJS 包装参数。
     旧 lazy global 注入原样保留，调用方迁移留待 NC0.7/NC0.8。
+19. **Node 兼容层 NC0.3：skynetcore 分组与能力表**（2026-09-24）：`skynetcore`
+    按能力分组挂载为 `runtime`/`fs`/`net`/`seri`，旧扁平名 `io`/`socket`/
+    `pack`/`unpack`/`str` 与顶层原语继续双挂至 NC0.8；`snjs.c` 只负责规则化装配，
+    `js-io.c`/`js-seri.c`/`js-net.c` 各自注册命名空间。`service-src/js-net.c`
+    作为 socket 与 netpack 帧缓冲的统一实现（同源维护）。`skynet.features()` 落地基础
+    能力表（`version`、`fsAsync`/`httpStream`/`subprocess` 等未落地能力报
+    `available:false` + `ERR_UNSUPPORTED_PLATFORM`，`cryptExt` 随 OpenSSL 开关），
+    构建期从 `package.json` 注入版本号；`js/skyjs.d.ts` 同步分组与能力表类型。
+    新增 skynetcore-groups 验收覆盖新旧名同值、seri round-trip 与 features 报告。

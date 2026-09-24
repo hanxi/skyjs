@@ -1,0 +1,5 @@
+{
+  "thread": 1,
+  "cpath": "./cservice/?.so;./test/cservice/?.so",
+  "bootstrap": "snjs test/service/skynetcore-groups-main.js"
+}

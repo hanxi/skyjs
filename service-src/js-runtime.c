@@ -27,7 +27,10 @@
 extern char **environ;
 
 #define MODAPI __attribute__((visibility("default")))
-#define RUNTIME_VERSION "0.1.0"
+#ifndef SKYJS_VERSION
+#define SKYJS_VERSION "0.1.0"
+#endif
+#define RUNTIME_VERSION SKYJS_VERSION
 #define MAX_MODULE_ID 512
 #define MAX_MODULE_PATH 4096
 

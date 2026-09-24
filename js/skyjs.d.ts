@@ -48,8 +48,24 @@ interface RuntimeInfoResult {
     uptime: number;
 }
 
+interface SkynetFeature {
+    available: boolean;
+    reason?: string;
+    version?: string;
+}
+
 interface SkynetFeatureTable {
     version: string;
+    sqlite: SkynetFeature;
+    httpStream: SkynetFeature;
+    fsAsync: SkynetFeature;
+    archive: SkynetFeature;
+    subprocess: SkynetFeature;
+    media: SkynetFeature;
+    tag: SkynetFeature;
+    cryptExt: SkynetFeature;
+    nativeExt: SkynetFeature & { dynamic: boolean; static: boolean };
+    pluginSandbox: SkynetFeature;
 }
 
 declare const skynetcore: {
@@ -85,7 +101,26 @@ declare const skynetcore: {
         environ(): Record<string, string>;
         readModuleSource(id: string): string | null;
     };
-    /** C-layer synchronous I/O primitives (js-io.c) */
+    /** C-layer synchronous I/O primitives (js-io.c); fs is the grouped name */
+    fs: {
+        readFile(path: string): ArrayBuffer;
+        writeFile(path: string, data: ArrayBuffer): void;
+        appendFile(path: string, data: ArrayBuffer): void;
+        exists(path: string): boolean;
+        stat(path: string): IoStatResult;
+        readdir(path: string): string[];
+        mkdir(path: string): void;
+        remove(path: string): void;
+        rename(oldPath: string, newPath: string): void;
+        open(path: string, mode: string): number;
+        fread(handle: number, n: number): ArrayBuffer;
+        fwrite(handle: number, data: ArrayBuffer): void;
+        fseek(handle: number, offset: number, whence: number): void;
+        ftell(handle: number): number;
+        fclose(handle: number): void;
+        /** string → ArrayBuffer (UTF-8) */
+        str2ab(s: string): ArrayBuffer;
+    };
     io: {
         readFile(path: string): ArrayBuffer;
         writeFile(path: string, data: ArrayBuffer): void;
@@ -105,6 +140,19 @@ declare const skynetcore: {
         /** string → ArrayBuffer (UTF-8) */
         str2ab(s: string): ArrayBuffer;
     };
+    /** skynetcore net (socket plus netpackMode); socket is the legacy alias */
+    net: {
+        listen(host: string, port: number, backlog?: number): number;
+        connect(host: string, port: number): number;
+        start(id: number): void;
+        send(id: number, data: string | ArrayBuffer): number;
+        close(id: number): void;
+        shutdown(id: number): void;
+        /** 关闭 Nagle 算法（TCP_NODELAY） */
+        nodelay(id: number): void;
+        /** 切换本服务为 netpack 模式：DATA 走 C 帧缓冲（gateserver 使用） */
+        netpackMode(): void;
+    };
     socket: {
         listen(host: string, port: number, backlog?: number): number;
         connect(host: string, port: number): number;
@@ -116,6 +164,12 @@ declare const skynetcore: {
         nodelay(id: number): void;
         /** 切换本服务为 netpack 模式：DATA 走 C 帧缓冲（gateserver 使用） */
         netpackMode(): void;
+    };
+    /** seri primitives; pack/unpack/str are legacy aliases */
+    seri: {
+        pack(...vals: unknown[]): ArrayBuffer;
+        unpack(buf: ArrayBuffer | string): unknown[];
+        str(buf: ArrayBuffer): string;
     };
     /** netpack 帧缓冲（2 字节大端长度前缀），gateserver 使用 */
     netpack: {
@@ -260,7 +314,7 @@ declare const io: {
 
 declare const skynet: {
     version: string;
-    /** 初始能力表；NC0.3 后包含各能力 available/reason/version */
+    /** 当前构建的能力表（结构与 infra/01-conventions §5 对齐） */
     features(): SkynetFeatureTable;
     PTYPE_TEXT: number;
     PTYPE_RESPONSE: number;

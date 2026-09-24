@@ -1,16 +1,15 @@
 /*
- * js-netpack.c -- netpack-style frame buffer for snjs, a JS-facing port of
- * 3rd/skynet/lualib-src/lua-netpack.c (byte-compatible 2-byte big-endian
+ * js-net.c -- skynetcore net namespace.
+ *
+ * Owns the socket bridge and the netpack frame buffer (a JS-facing port of
+ * 3rd/skynet/lualib-src/lua-netpack.c, byte-compatible 2-byte big-endian
  * length framing + per-fd reassembly + a ring queue).
  *
- * Differences from the Lua version: the queue is a per-service singleton
- * owned by struct snjs (l->netpack_q, lazily allocated) instead of a Lua
- * userdata carried on the stack. Ownership contract (see DEVELOPMENT.md):
- * a PTYPE_SOCKET DATA event's sm->buffer is a fresh skynet_malloc block owned
- * by this service; js_netpack_dispatch takes it over (zero-copy) and frees it
- * in filter_data, and the reassembled packets it enqueues are freed on
- * pop/clear. Control events (buffer == NULL) keep their text inside the outer
- * skynet_socket_message and are freed by the framework, never here.
+ * Netpack queue ownership: a PTYPE_SOCKET DATA event's sm->buffer is a fresh
+ * skynet_malloc block owned by the service; js_netpack_dispatch takes it over
+ * (zero-copy) and frees it in filter_data, and reassembled packets are freed
+ * on pop/clear. Control events (buffer == NULL) keep their text inside the
+ * outer skynet_socket_message and are freed by the framework, never here.
  */
 
 #include <quickjs.h>
@@ -21,9 +20,125 @@
 #include <string.h>
 
 #include "skynet.h"
+#include "skynet_server.h"
 #include "skynet_malloc.h"
 #include "skynet_socket.h"
 #include "snjs-internal.h"
+
+static struct snjs *
+getinst(JSContext *ctx) {
+	return JS_GetContextOpaque(ctx);
+}
+
+/* ------------------------------------------------------- socket bridge */
+
+static JSValue
+js_sock_listen(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val;
+	const char *host = JS_ToCString(ctx, argv[0]);
+	if (host == NULL) return JS_EXCEPTION;
+	int32_t port, backlog = 64;
+	if (JS_ToInt32(ctx, &port, argv[1])) { JS_FreeCString(ctx, host); return JS_EXCEPTION; }
+	if (argc > 2) JS_ToInt32(ctx, &backlog, argv[2]);
+	int id = skynet_socket_listen(l->ctx, host, port, backlog);
+	JS_FreeCString(ctx, host);
+	return JS_NewInt32(ctx, id);
+}
+
+static JSValue
+js_sock_connect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val;
+	const char *host = JS_ToCString(ctx, argv[0]);
+	if (host == NULL) return JS_EXCEPTION;
+	int32_t port;
+	if (JS_ToInt32(ctx, &port, argv[1])) { JS_FreeCString(ctx, host); return JS_EXCEPTION; }
+	int id = skynet_socket_connect(l->ctx, host, port);
+	JS_FreeCString(ctx, host);
+	return JS_NewInt32(ctx, id);
+}
+
+static JSValue
+js_sock_start(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc;
+	int32_t id;
+	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+	skynet_socket_start(l->ctx, id);
+	return JS_UNDEFINED;
+}
+
+// send(id, data): buffer ownership transfers to the socket layer. data may be
+// a string (UTF-8) or an ArrayBuffer (binary-safe, per-connection binary).
+static JSValue
+js_sock_send(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val;
+	if (argc < 2) {
+		return JS_ThrowTypeError(ctx, "skynetcore.socket.send(id, data)");
+	}
+	int32_t id;
+	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+	size_t sz = 0;
+	void *buf = NULL;
+	if (JS_IsArrayBuffer(argv[1])) {
+		uint8_t *p = JS_GetArrayBuffer(ctx, &sz, argv[1]);
+		if (p == NULL) return JS_EXCEPTION;
+		buf = skynet_malloc(sz);
+		memcpy(buf, p, sz);
+	} else {
+		const char *data = JS_ToCStringLen(ctx, &sz, argv[1]);
+		if (data == NULL) return JS_EXCEPTION;
+		buf = skynet_malloc(sz);
+		memcpy(buf, data, sz);
+		JS_FreeCString(ctx, data);
+	}
+	int r = skynet_socket_send(l->ctx, id, buf, (int)sz);
+	return JS_NewInt32(ctx, r);
+}
+
+static JSValue
+js_sock_nodelay(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc;
+	int32_t id;
+	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+	skynet_socket_nodelay(l->ctx, id);
+	return JS_UNDEFINED;
+}
+
+// enable netpack mode: PTYPE_SOCKET DATA is routed through the C frame buffer
+// (js_netpack_dispatch) instead of being delivered as a raw payload. Used by
+// gateserver.js; one flag per service (a service is either a gate or not).
+static JSValue
+js_sock_netpack_mode(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc; (void)argv;
+	l->socket_netpack = 1;
+	return JS_UNDEFINED;
+}
+
+static JSValue
+js_sock_close(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc;
+	int32_t id;
+	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+	skynet_socket_close(l->ctx, id);
+	return JS_UNDEFINED;
+}
+
+static JSValue
+js_sock_shutdown(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc;
+	int32_t id;
+	if (JS_ToInt32(ctx, &id, argv[0])) return JS_EXCEPTION;
+	skynet_socket_shutdown(l->ctx, id);
+	return JS_UNDEFINED;
+}
+
 
 #define QUEUESIZE 1024
 #define HASHSIZE 4096
@@ -451,6 +566,28 @@ js_netpack_clear(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *
 	np_clear(l);
 	return JS_UNDEFINED;
 }
+
+void
+register_net_bridge(JSContext *ctx, JSValue obj) {
+	JSValue net = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, net, "listen", JS_NewCFunction(ctx, js_sock_listen, "listen", 3));
+	JS_SetPropertyStr(ctx, net, "connect", JS_NewCFunction(ctx, js_sock_connect, "connect", 2));
+	JS_SetPropertyStr(ctx, net, "start", JS_NewCFunction(ctx, js_sock_start, "start", 1));
+	JS_SetPropertyStr(ctx, net, "send", JS_NewCFunction(ctx, js_sock_send, "send", 2));
+	JS_SetPropertyStr(ctx, net, "close", JS_NewCFunction(ctx, js_sock_close, "close", 1));
+	JS_SetPropertyStr(ctx, net, "shutdown", JS_NewCFunction(ctx, js_sock_shutdown, "shutdown", 1));
+	JS_SetPropertyStr(ctx, net, "nodelay", JS_NewCFunction(ctx, js_sock_nodelay, "nodelay", 1));
+	JS_SetPropertyStr(ctx, net, "netpackMode", JS_NewCFunction(ctx, js_sock_netpack_mode, "netpackMode", 0));
+	JS_SetPropertyStr(ctx, obj, "socket", JS_DupValue(ctx, net));
+	JS_SetPropertyStr(ctx, obj, "net", net);
+
+	JSValue netpack = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, netpack, "pop", JS_NewCFunction(ctx, js_netpack_pop, "pop", 0));
+	JS_SetPropertyStr(ctx, netpack, "pack", JS_NewCFunction(ctx, js_netpack_pack, "pack", 1));
+	JS_SetPropertyStr(ctx, netpack, "clear", JS_NewCFunction(ctx, js_netpack_clear, "clear", 0));
+	JS_SetPropertyStr(ctx, obj, "netpack", netpack);
+}
+
 
 // service teardown: clear then free the queue itself (snjs_release).
 void

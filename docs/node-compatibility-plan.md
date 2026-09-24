@@ -49,7 +49,7 @@
 |---|---|---|---|
 | NC0.1 | 构建期模块清单 + `js-runtime.c` 原语 | — | 已完成 |
 | NC0.2 | CJS loader + bootstrap 自举 | NC0.1 | 已完成 |
-| NC0.3 | `skynetcore` 分组重命名 + `features()` | NC0.1 | 未开始 |
+| NC0.3 | `skynetcore` 分组重命名 + `features()` | NC0.1 | 已完成 |
 | NC0.4 | 事件循环 + 定时器 + nextTick | NC0.2 | 未开始 |
 | NC0.5 | `process` 核心 + 宿主退出 | NC0.2、NC0.4 | 未开始 |
 | NC0.6 | events / Buffer / abort / text-codec / console | NC0.2、NC0.3 | 未开始 |

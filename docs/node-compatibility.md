@@ -1296,9 +1296,9 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
   与 Promise microtask。
 - 没有 `.fs`、`.subprocess` owner service，没有 `skynetcore.subprocess`，没有统一
   权限/配额层，没有插件宿主（`.pluginManager`）。
-- `skynetcore` 仍是扁平命名空间（`readFile`/`send`/`socket`/`pack` 混在顶层），
-  没有 `skynetcore.runtime`/`.fs`/`.net`/`.seri` 分组。
-- `skynet` 全局没有 `features()`，上层库与 Node facade 无法做能力探测。
+- `skynetcore` 的 `runtime`/`fs`/`net`/`seri` 分组已随 NC0.3 落地；旧扁平名
+  在 NC0.8 收敛前继续双挂（`readFile`/`send`/`socket`/`pack` 仍在顶层）。
+- `skynet.features()` 已随 NC0.3 落地；能力表仍会随后续批次逐步填充。
 - 没有宿主级退出原语：`skynet.exit()` 等价于 retire 当前 service，无法实现 §4.1 的
   `process.exit()`；`platform/main.c` 固定 `return 0`，没有退出码回传通道。
 
@@ -1357,7 +1357,7 @@ NC1 覆盖纯 JS 模块与错误层；NC2 覆盖流与完整 `fs`；NC3 覆盖�
 | 缺口 | 说明 |
 |---|---|
 | `AbortSignal`/`AbortController` | QuickJS-ng 不内置，由 `js/internal/abort.js` 提供 WHATWG 对齐 polyfill（infra 01 §6 已约定）；`skynet.abortController()` 与 Node 全局共用同一实现 |
-| `skynet.features()` | 尚未实现；Node 兼容层与上层库都需要它做能力探测 |
+| `skynet.features()` | NC0.3 已实现基础能力表；后续按批次补齐 `available`/`reason` 和包能力键 |
 | 插件宿主与权限入口 | `.pluginManager`/`snplugin` 尚不存在；Node 兼容面的模块白名单与 `child_process`/`fs` 授权最终挂在这里 |
 | Node 对照测试设施 | 需要能拉 Node 20 跑同一组用例、逐项对比返回值的运行器，否则"完整 `fs`"无法验收 |
 | 构建与打包 | 新增模块要按目录清单自动收录进字节码模块包（§16.9），不再维护逐库懒加载表；owner service 要能被 `skynet.newservice` 找到 |
@@ -2111,7 +2111,7 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
 | （新增）`webapp`/`db`/`media`/`tag`/`archive`/`config`/`metrics` | 均落 `packages/<name>/`，发布为 `@skyjs/<name>`；原生部分随包（§16.4.1、§16.4.3） |
 | `js/skyjs.d.ts` | 拆到 `js/types/*.d.ts`，按模块维护 |
 | `service-src/js-io.c` | 重构为 `js-fs.c`，补 fd/errno/权限/流式原语 |
-| `service-src/js-netpack.c` | 并入 `service-src/js-net.c`（`skynetcore.net`/`netpack` 同源维护） |
+| `service-src/js-net.c` | 并入 `service-src/js-net.c`（`skynetcore.net`/`netpack` 同源维护） |
 | `service-src/js-crypto.c` / `js-tls.c` / `js-seri.c` | 保留，命名空间按 §16.5 分组挂载 |
 | `snjs.c` 的 `lazy_setup_js` | 删除，换成 loader 引导 + 模块清单 |
 | `platform/main.c` 固定 `return 0` | 改为返回退出码槽位的值（`process.exit(code)` / `process.exitCode`） |

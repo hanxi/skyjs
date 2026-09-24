@@ -431,7 +431,6 @@
         return line;
     }
 
-    const SKYJS_VERSION = "0.1.0";
     const consoleObj = {};
     for (const level of ["log", "info", "debug", "warn", "error", "trace"]) {
         consoleObj[level] = function (...args) { skynetcore.error(formatLine(args)); };
@@ -481,8 +480,8 @@
 
     globalThis.skynet = {
         PTYPE_TEXT, PTYPE_RESPONSE, PTYPE_ERROR, PTYPE_LUA, PTYPE_CLIENT,
-        version: SKYJS_VERSION,
-        features: function () { return { version: SKYJS_VERSION }; },
+        version: skynetcore.runtime.info().version,
+        features: function () { return skynetcore.features(); },
         start: function (startFunc) { startFunc(); },
         dispatch: skynetDispatch,
         registerProtocol,
