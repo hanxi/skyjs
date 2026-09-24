@@ -242,3 +242,6 @@
     迁至 `js/builtins/skyjs/cluster.js`，保留旧全局注入以便 lazy loader 过渡；
     `Makefile` 的内嵌字节码源、`snjs.c` 默认 `jsCluster` 路径与嵌入查找同步更新。
     cluster/cluster_fail 验收经网络环境复跑全绿。
+24. **Node 兼容层 NC0.7-2：gateserver 迁移最终落位**（2026-09-24）：`js/gateserver.js`
+    迁至 `js/builtins/skyjs/gateserver.js`，保留旧全局注入与模块导出；Makefile、
+    `snjs.c` 默认路径/嵌入查找同步更新。gate/socket 场景经网络环境复跑全绿。

@@ -19,7 +19,7 @@ skyjs/                      # 顶层项目(git 主仓库,运行时 CWD;顶层均
 │   ├── js-net.c            # skynetcore.net + gate 2 字节帧缓冲(per-fd 重组 + 队列)
 │   └── skyclusterd.c       # cluster 重写(线协议兼容原版 lua-cluster.c)
 ├── cservice/               # 编译产物(logger.so/snjs.so/skyclusterd.so)
-├── js/                     # JS 库:skynet.js/socket.js/builtins/skyjs/cluster.js/gateserver.js
+├── js/                     # JS 库:skynet.js/socket.js/builtins/skyjs/cluster.js/builtins/skyjs/gateserver.js
 │                           # skyjs.d.ts = 全局注入面的 TS 类型声明(与库同源)
 ├── examples/               # TypeScript 接入示例(ts-echo:esbuild 转译 + 运行配置)
 ├── service/                # JS 服务脚本(bootstrap 等)
@@ -92,7 +92,7 @@ Windows 测试套件暂未启用(依赖 POSIX 信号等工具链)。
                                 # logger/logservice/profile 映射 skynet_config
 ```
 
-JS 服务脚本约定(加载顺序:js/skynet.js → js/socket.js → js/builtins/skyjs/cluster.js → js/gateserver.js → 用户脚本):
+JS 服务脚本约定(加载顺序:js/skynet.js → js/socket.js → js/builtins/skyjs/cluster.js → js/builtins/skyjs/gateserver.js → 用户脚本):
 
 ```js
 skynet.start(() => {

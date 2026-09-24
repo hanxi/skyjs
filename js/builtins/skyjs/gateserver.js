@@ -86,7 +86,7 @@
         }
     }
 
-    globalThis.gateserver = {
+    const gateserver = {
         // start reading an accepted connection (after forward/accept)
         openclient(fd) {
             if (connection.get(fd)) sock.start(fd | 0);
@@ -120,4 +120,8 @@
             __snjs_set_socket_handler(onSocket);
         },
     };
+    globalThis.gateserver = gateserver;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = gateserver;
+    }
 })();

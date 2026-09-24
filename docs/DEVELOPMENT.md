@@ -191,7 +191,7 @@ seri → JS（unpack）类型映射（1:1，接收侧无歧义）：
 
 ## Gate / netpack / redirect
 
-`js/gateserver.js` 对齐原版 `snax/gateserver.lua` 的核心连接状态机，使用
+`js/builtins/skyjs/gateserver.js` 对齐原版 `snax/gateserver.lua` 的核心连接状态机，使用
 `service-src/js-net.c` 处理 2 字节大端长度帧。netpack 队列为 per-service 单例：
 DATA 到达时 C 层直接接管 `sm->buffer`，单包/分片按 fd 重组，多包进入 ring queue；
 `netpack.pop()` 把完整包复制为 ArrayBuffer 后释放 C 缓冲，`netpack.clear()` 与
