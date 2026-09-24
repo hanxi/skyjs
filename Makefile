@@ -239,16 +239,16 @@ build/qjsc: 3rd/quickjs/qjsc.c 3rd/quickjs/quickjs-libc.c $(QJS_OBJ) | build
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -I3rd/quickjs -o $@ 3rd/quickjs/qjsc.c 3rd/quickjs/quickjs-libc.c $(QJS_OBJ) -lm
 endif
 
-# embedded bytecode of js/skynet.js + js/socket.js + js/internal/crypt-core.js +
-# js/sockethelper.js + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/internal/http-core.js +
+# embedded bytecode of js/skynet.js + js/internal/net-core.js + js/internal/crypt-core.js +
+# js/internal/net-helper-core.js + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/internal/http-core.js +
 # js/websocket.js + js/internal/fs-core.js + js/ioservice.js: snjs loads these instead of
 # parsing the sources per service. Regenerated whenever the sources or the
 # quickjs submodule move; never committed.
-build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/internal/crypt-core.js js/sockethelper.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/websocket.js js/internal/fs-core.js js/ioservice.js | build
+build/rt_bc.c: build/qjsc js/skynet.js js/internal/net-core.js js/internal/crypt-core.js js/internal/net-helper-core.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/websocket.js js/internal/fs-core.js js/ioservice.js | build
 	./build/qjsc -s -N snjs_bc_skynet -o build/bc_skynet.c js/skynet.js
-	./build/qjsc -s -N snjs_bc_socket -o build/bc_socket.c js/socket.js
+	./build/qjsc -s -N snjs_bc_socket -o build/bc_socket.c js/internal/net-core.js
 	./build/qjsc -s -N snjs_bc_crypt -o build/bc_crypt.c js/internal/crypt-core.js
-	./build/qjsc -s -N snjs_bc_sockethelper -o build/bc_sockethelper.c js/sockethelper.js
+	./build/qjsc -s -N snjs_bc_sockethelper -o build/bc_sockethelper.c js/internal/net-helper-core.js
 	./build/qjsc -s -N snjs_bc_cluster -o build/bc_cluster.c js/builtins/skyjs/cluster.js
 	./build/qjsc -s -N snjs_bc_gateserver -o build/bc_gateserver.c js/builtins/skyjs/gateserver.js
 	./build/qjsc -s -N snjs_bc_http -o build/bc_http.c js/internal/http-core.js

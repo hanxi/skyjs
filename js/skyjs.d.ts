@@ -604,7 +604,7 @@ declare const crypt: {
     dhSecret(x: ArrayBuffer, y: ArrayBuffer): ArrayBuffer;
 };
 
-// --------------- sockethelper (js/sockethelper.js) ---------------
+// --------------- sockethelper (js/internal/net-helper-core.js) ---------------
 
 /** BufferedReader: 将回调式 socket 数据到达转为 Promise 式精确长度读取 */
 declare class BufferedReader {

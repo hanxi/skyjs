@@ -1,5 +1,4 @@
-// skyjs socket bridge (Task 4).
-// Loaded by snjs after skynet.js (env key "jsSocket", default "./js/socket.js").
+// skyjs socket core (Task 4).
 // Wraps the skynet socket API (event-driven, one C socket thread) with
 // per-connection callbacks. Socket DATA crosses the C boundary as an
 // ArrayBuffer (binary-safe); by default on_data receives a decoded UTF-8
@@ -46,7 +45,7 @@
 
     const sock = skynetcore.socket;
 
-    globalThis.socket = {
+    const socketObject = {
         listen(host, port, onAccept, backlog) {
             const id = sock.listen(String(host), port | 0, backlog || 64);
             if (id >= 0) {
@@ -100,4 +99,8 @@
             sock.shutdown(id | 0);
         },
     };
+    globalThis.socket = socketObject;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = socketObject;
+    }
 })();

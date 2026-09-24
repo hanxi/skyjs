@@ -1,15 +1,8 @@
 // skyjs socket helper: buffered reader layer (Task 5).
-// Bridges the callback-based socket model (js/socket.js) to Promise-based
-// exact-length reads. Used by higher-level protocols (HTTP, WebSocket, TLS)
-// that need to consume exact byte counts or line-delimited frames from a
-// stream.
-//
-// Loaded by snjs after socket.js (env key "jsSockethelper", default
-// "./js/sockethelper.js"). Provides globalThis.sockethelper with:
-//   - socket_error sentinel (=== comparison for socket errors vs logic errors)
-//   - BufferedReader class (exact-length read / readline with CRLF)
-//   - connect(host, port, timeout) -> Promise<fd>
-//   - writefunc(fd) -> (data) => void
+// Bridges the callback-based socket model (internal/net-core.js) to
+// Promise-based exact-length reads. Used by higher-level protocols (HTTP,
+// WebSocket, TLS) that need to consume exact byte counts or line-delimited
+// frames from a stream.
 (function () {
     "use strict";
 
@@ -414,4 +407,7 @@
             return r;
         },
     };
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = globalThis.sockethelper;
+    }
 })();

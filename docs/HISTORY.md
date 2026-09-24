@@ -252,3 +252,7 @@
 27. **Node 兼容层 NC0.7-5：HTTP 内核过渡落位**（2026-09-24）：`js/http.js` 迁为
     `js/internal/http-core.js`，保留 `httpd`/`httpc`/`httpInternal` 旧全局注入供
     websocket/过渡调用；Makefile、`snjs.c` 默认 `jsHttp` 路径与嵌入查找同步更新。
+28. **Node 兼容层 NC0.7-6：socket/sockethelper 过渡落位**（2026-09-24）：
+    `js/socket.js` → `js/internal/net-core.js`，`js/sockethelper.js` →
+    `js/internal/net-helper-core.js`；保留 `socket`/`sockethelper` 旧全局注入与
+    CJS 导出。Makefile、`snjs.c` 默认路径/嵌入查找同步更新，网络场景全量回归通过。

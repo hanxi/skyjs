@@ -15,7 +15,7 @@
 // globalThis.skynet and the __snjs_* C-layer contracts are global.
 
 // TextEncoder/TextDecoder polyfill. The QuickJS-ng runtime used by snjs does
-// not ship the WHATWG Encoding API, yet crypt-core.js/sockethelper.js/http-core.js/
+// not ship the WHATWG Encoding API, yet crypt-core.js/net-helper-core.js/http-core.js/
 // websocket.js all rely on UTF-8 <-> string conversion. skynet.js is the first
 // runtime library loaded, so defining these here makes them available to every
 // later module. Guarded so a future native implementation wins.
@@ -230,7 +230,7 @@
     }
 
     // socket events come pre-parsed as {type, id, ud, data} objects (snjs.c);
-    // js/socket.js installs the actual handler via __snjs_set_socket_handler.
+    // internal/net-core.js installs the actual handler via __snjs_set_socket_handler.
     globalThis.__snjs_set_socket_handler = function (fn) { socketHandler = fn; };
     // builtins/skyjs/cluster.js installs handlers for responses that don't belong to skynet.call
     // (cluster.call bookkeeping): (session, payload) and (session, source)
