@@ -1,6 +1,6 @@
 // skyjs WebSocket server + client (Task 7, RFC 6455).
-// Loaded by snjs after http.js (env key "jsWebsocket", default
-// "./js/websocket.js"). Provides globalThis.websocket.
+// Shared core behind the legacy global and the future require('websocket')
+// facade. Reuses internal/http-core.js for the HTTP upgrade handshake.
 //
 // Ported from 3rd/skynet/lualib/http/websocket.lua. Reuses
 // http_internal.recv_header / parse_header for the HTTP upgrade handshake.
@@ -777,4 +777,7 @@
     };
 
     globalThis.websocket = wsApi;
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = wsApi;
+    }
 })();

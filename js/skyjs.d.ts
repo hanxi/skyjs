@@ -783,7 +783,7 @@ declare const httpInternal: {
     readonly httpStatusMsg: Record<number, string>;
 };
 
-// --------------- websocket (js/websocket.js) ---------------
+// --------------- websocket (js/internal/websocket-core.js) ---------------
 
 /** WebSocket handler 回调接口（服务端 accept handler 模式） */
 interface WebSocketHandler {

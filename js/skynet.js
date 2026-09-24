@@ -16,7 +16,7 @@
 
 // TextEncoder/TextDecoder polyfill. The QuickJS-ng runtime used by snjs does
 // not ship the WHATWG Encoding API, yet crypt-core.js/net-helper-core.js/http-core.js/
-// websocket.js all rely on UTF-8 <-> string conversion. skynet.js is the first
+// websocket-core.js all rely on UTF-8 <-> string conversion. skynet.js is the first
 // runtime library loaded, so defining these here makes them available to every
 // later module. Guarded so a future native implementation wins.
 (function () {

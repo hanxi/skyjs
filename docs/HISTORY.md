@@ -256,3 +256,7 @@
     `js/socket.js` → `js/internal/net-core.js`，`js/sockethelper.js` →
     `js/internal/net-helper-core.js`；保留 `socket`/`sockethelper` 旧全局注入与
     CJS 导出。Makefile、`snjs.c` 默认路径/嵌入查找同步更新，网络场景全量回归通过。
+29. **Node 兼容层 NC0.7-7：websocket 过渡落位**（2026-09-24）：
+    `js/websocket.js` → `js/internal/websocket-core.js`；保留旧
+    `globalThis.websocket` 与 CJS 导出，Makefile/`snjs.c` 默认路径与嵌入查找同步。
+    http/ws 场景经网络环境复跑全绿。
