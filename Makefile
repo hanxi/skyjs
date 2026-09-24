@@ -126,6 +126,12 @@ QJS_OBJ := $(addprefix build/qjs_,$(notdir $(QJS_SRC:.c=.o)))
 
 TARGET := skyjs$(EXE_SUFFIX)
 
+# NC0.1 deterministic module manifest. The generator lists its dependencies so
+# Make can regenerate the manifest before any new internal/builtin module is
+# consumed by the future CJS loader.
+MODULE_MANIFEST := build/module-manifest.json
+MODULE_MANIFEST_DEPS := $(shell node tools/gen-module-manifest.js --list-files)
+
 # STATIC=1: fold the production cservice modules into the skyjs executable
 # instead of loading them as .so at runtime (see platform/builtin-dl.c).  The
 # dlopen fallback stays intact, so test services and third-party plugins still
@@ -134,7 +140,7 @@ BUILTIN_OBJ :=
 STATIC_LDFLAGS :=
 ifeq ($(STATIC),1)
   BUILTIN_OBJ := build/snjs.o build/seri.o build/netpack.o build/crypto.o \
-    build/io.o $(TLS_OBJ) build/rt_bc.o build/svc_logger.o \
+    build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o build/svc_logger.o \
     build/svc_skyclusterd.o build/builtin-dl.o
   ifeq ($(PLAT),macosx)
     STATIC_LDFLAGS := -Wl,-export_dynamic
@@ -158,11 +164,14 @@ endif
 # STATIC folds logger/snjs/skyclusterd into skyjs, so those .so are not built;
 # the test services stay dynamic and exercise the dlopen fallback.
 ifeq ($(STATIC),1)
-all: $(TARGET) test/cservice/echo.so test/cservice/driver.so
+all: $(MODULE_MANIFEST) $(TARGET) test/cservice/echo.so test/cservice/driver.so
 else
-all: $(TARGET) cservice/logger.so cservice/snjs.so cservice/skyclusterd.so \
-	test/cservice/echo.so test/cservice/driver.so
+all: $(MODULE_MANIFEST) $(TARGET) cservice/logger.so cservice/snjs.so \
+	cservice/skyclusterd.so test/cservice/echo.so test/cservice/driver.so
 endif
+
+$(MODULE_MANIFEST): tools/gen-module-manifest.js $(MODULE_MANIFEST_DEPS) | build
+	node tools/gen-module-manifest.js --output $@
 
 build:
 	mkdir -p build
@@ -180,22 +189,25 @@ build/%.o: platform/%.c | build
 build/qjs_%.o: 3rd/quickjs/%.c | build
 	$(CC) $(CFLAGS) -fPIC -D_GNU_SOURCE -I3rd/quickjs -c $< -o $@
 
-build/snjs.o: service-src/snjs.c | build
+build/snjs.o: service-src/snjs.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/seri.o: service-src/js-seri.c | build
+build/seri.o: service-src/js-seri.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/netpack.o: service-src/js-netpack.c | build
+build/netpack.o: service-src/js-netpack.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/crypto.o: service-src/js-crypto.c | build
+build/crypto.o: service-src/js-crypto.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/tls.o: service-src/js-tls.c | build
+build/tls.o: service-src/js-tls.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/io.o: service-src/js-io.c | build
+build/io.o: service-src/js-io.c service-src/snjs-internal.h | build
+	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
+
+build/runtime.o: service-src/js-runtime.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
 # STATIC-only object builds of logger + skyclusterd (same flags as their .so
@@ -247,7 +259,8 @@ build/rt_bc.c: build/qjsc js/skynet.js js/socket.js js/crypt.js js/sockethelper.
 build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
-cservice/snjs.so: build/snjs.o build/seri.o build/netpack.o build/crypto.o build/io.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
+cservice/snjs.so: build/snjs.o build/seri.o build/netpack.o build/crypto.o \
+	build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
 	$(CC) $(CFLAGS) $(SHARED) -fvisibility=hidden -o $@ $^ $(OPENSSL_LDFLAGS) -lm
 
 # reference tool: original lua-seri.c linked with the stock Lua 5.5.1 shipped
@@ -295,6 +308,7 @@ clean:
 # (see tools/run-tests.js header for the pass/fail model); seri_tool is a
 # separate target because `all` does not build it
 test: all test/seri-tool
+	node tools/gen-module-manifest.js --check
 	node tools/run-tests.js
 
 # one-command interop acceptance against the stock Lua skynet node:

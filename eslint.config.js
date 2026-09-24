@@ -2,7 +2,8 @@
 //
 // Two runtimes, two override sets:
 //   - QuickJS side (js/, test/service/, examples/): globals injected by the
-//     snjs loader (skynetcore, skynet, socket, ...); no require/process.
+//     snjs loader (skynetcore, skynet, socket, ...). Since NC0.2, service and
+//     runtime modules also receive the module-local CJS five-tuple.
 //   - Node side (tools/): real CommonJS scripts (require/process, and the
 //     retired-name list is exempted here because the ESLint config itself
 //     and the harness scripts mention those names in their rules/comments).
@@ -76,6 +77,9 @@ module.exports = [
                 "^(?!(?:" + retiredNames + ")$)[A-Za-z_$][\\w$]*$",
                 { properties: false, classFields: false }],
             "no-undef": "off", // globals are injected at runtime by the C loader
+            // CJS require/module.exports are provided as wrapper parameters,
+            // not Node imports; the runtime owns the compatibility loader.
+            "@typescript-eslint/no-require-imports": "off",
             "@typescript-eslint/no-unused-vars": "off", // handled by review; QuickJS has no tree-shaking semantics to protect
             // ts-echo references the ambient declaration file by path (esbuild
             // bundle with --platform=neutral has no module resolution for it)

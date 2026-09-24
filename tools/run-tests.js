@@ -54,6 +54,10 @@ const NEVER = [
 const SUITE = [
     { name: "core", config: "test/config-core.json",
         must: ["echo service started", "LAUNCH echo"] },
+    { name: "module_system", config: "test/config-module-system.json",
+        must: ["MODULE_SYSTEM_OK cache=1 cycles=a/b locals=true file=true"] },
+    { name: "features", config: "test/config-features.json",
+        mustRe: [/FEATURES_OK version=0\.1\.0 platform=(?:darwin|linux) arch=(?:arm64|x64)/] },
     { name: "echo", config: "test/config-echo.json",
         must: ["DRIVER RESP: JS_ECHO:hello_from_js"] },
     { name: "async", config: "test/config-async.json",

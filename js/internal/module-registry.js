@@ -1,0 +1,50 @@
+"use strict";
+
+// The single rule table used by the CJS loader. Builtins are resolved before
+// the filesystem; a missing Node builtin may still fall back to the ordinary
+// third-party resolver so bare package names remain usable.
+
+const path = require("./path-posix.js");
+const engineRoot = path.resolve("./js");
+
+function resolve(request) {
+    if (typeof request !== "string" || request === "") return null;
+    const nodePrefix = request.startsWith("node:");
+    if (nodePrefix) request = request.slice(5);
+
+    if (request.startsWith("internal/") || request.startsWith("js/internal/")) {
+        const id = request.startsWith("internal/") ?
+            request : request.slice(3);
+        return { id, kind: "internal", fallback: null };
+    }
+    if (request.startsWith("skyjs/")) {
+        return {
+            id: "builtins/" + request,
+            kind: "builtin",
+            fallback: "@skyjs/" + request.slice(7),
+        };
+    }
+    if (request.startsWith("./") || request.startsWith("../") ||
+        request.startsWith("/") || request.startsWith("@")) {
+        return null;
+    }
+    return {
+        id: "builtins/" + request,
+        kind: "builtin",
+        fallback: nodePrefix ? null : request,
+    };
+}
+
+function isInternalAllowed(parent) {
+    if (parent === undefined || parent === null) return true;
+    if (typeof parent !== "string") return false;
+    const relative = path.relative(engineRoot, parent);
+    return relative === "bootstrap.js" || relative === "loader.js" ||
+        relative.startsWith("internal/") || relative.startsWith("builtins/");
+}
+
+function register(moduleSystem) {
+    moduleSystem._registry = { resolve, isInternalAllowed };
+}
+
+module.exports = { resolve, isInternalAllowed, register };

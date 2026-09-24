@@ -603,6 +603,8 @@ register_bridge(struct snjs *l) {
 	JS_SetPropertyStr(l->jsc, netpack, "pack", JS_NewCFunction(l->jsc, js_netpack_pack, "pack", 1));
 	JS_SetPropertyStr(l->jsc, netpack, "clear", JS_NewCFunction(l->jsc, js_netpack_clear, "clear", 0));
 	JS_SetPropertyStr(l->jsc, obj, "netpack", netpack);
+	// js-runtime primitives (process/module-source foundation)
+	register_runtime_bridge(l, obj);
 	// js-seri extensions (pack/unpack, see js-seri.c)
 	JS_SetPropertyStr(l->jsc, obj, "pack", JS_NewCFunction(l->jsc, js_seri_pack, "pack", 0));
 	JS_SetPropertyStr(l->jsc, obj, "unpack", JS_NewCFunction(l->jsc, js_seri_unpack, "unpack", 1));
@@ -616,6 +618,7 @@ register_bridge(struct snjs *l) {
 	register_tls_bridge(l->jsc, g);
 #endif
 	register_io_bridge(l->jsc, g);
+	register_runtime_module_bridge(l);
 	JS_FreeValue(l->jsc, g);
 }
 
@@ -872,6 +875,7 @@ eval_runtime(struct snjs *l, const char *path, const char *where) {
 static int
 init_cb(struct snjs *l, struct skynet_context *ctx, const char * args, size_t sz) {
 	l->ctx = ctx;
+	js_runtime_set_args(l, args, sz);
 	// see worker_cb: init may run on a worker whose stack differs from the
 	// thread that called JS_NewRuntime2 (the nested-LAUNCH case)
 	JS_UpdateStackTop(l->rt);
@@ -945,23 +949,35 @@ init_cb(struct snjs *l, struct skynet_context *ctx, const char * args, size_t sz
 		param = sp + 1;
 	}
 
-	char *code = read_file(tmp);
-	if (code == NULL) {
-		skynet_error(ctx, "snjs can't open script %s", tmp);
+	// NC0.2 bootstrap: loader.js is evaluated as a plain script, then it
+	// requires bootstrap.js and the service entry. The legacy lazy globals
+	// above remain in place until NC0.8; existing service scripts simply run
+	// inside the new CJS wrapper without being migrated.
+	{
+		JSValue g = JS_GetGlobalObject(l->jsc);
+		JS_SetPropertyStr(l->jsc, g, "__snjs_bootstrap",
+			JS_NewString(l->jsc, optstring(ctx, "jsBootstrap", "./js/bootstrap.js")));
+		JS_SetPropertyStr(l->jsc, g, "__snjs_main", JS_NewString(l->jsc, tmp));
+		JS_SetPropertyStr(l->jsc, g, "__snjs_param", JS_NewString(l->jsc, param));
+		JS_FreeValue(l->jsc, g);
+	}
+
+	char *loader_code = read_file("./js/loader.js");
+	if (loader_code == NULL) {
+		skynet_error(ctx, "snjs can't open module loader js/loader.js");
 		skynet_free(tmp);
 		return 1;
 	}
-	JSValue ret = JS_Eval(l->jsc, code, strlen(code), tmp, JS_EVAL_TYPE_GLOBAL);
-	skynet_free(code);
+	JSValue ret = JS_Eval(l->jsc, loader_code, strlen(loader_code),
+		"./js/loader.js", JS_EVAL_TYPE_GLOBAL);
+	skynet_free(loader_code);
 	if (JS_IsException(ret)) {
-		dump_exception(l, "snjs load error");
+		dump_exception(l, "snjs loader error");
 		skynet_free(tmp);
 		return 1;
 	}
 	JS_FreeValue(l->jsc, ret);
-
 	JSValue g = JS_GetGlobalObject(l->jsc);
-	JS_SetPropertyStr(l->jsc, g, "snjsParam", JS_NewString(l->jsc, param));
 	JSValue dispatch = JS_GetPropertyStr(l->jsc, g, "dispatch");
 	if (!JS_IsFunction(l->jsc, dispatch)) {
 		skynet_error(ctx, "snjs script %s must define globalThis.dispatch", tmp);
@@ -1061,6 +1077,7 @@ snjs_create(void) {
 MODAPI void
 snjs_release(struct snjs *l) {
 	js_netpack_free(l);
+	skynet_free(l->runtime_args);
 	JS_FreeValue(l->jsc, l->dispatch);
 	JS_FreeValue(l->jsc, l->map_entries_fn);
 	JS_FreeValue(l->jsc, l->lua_table_build_fn);

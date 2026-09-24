@@ -187,3 +187,19 @@
     编译契约）；snjs_internal.h 改为 snjs-internal.h。至此全库（除本文档
     历史条目与 3rd/ submodule）无 snake 文件名。本文档为 append-only 档案，
     旧条目中的旧文件名保留原样。
+17. **Node 兼容层 NC0.1 起步**（2026-09-24）：落地构建期模块清单生成器
+    （`tools/gen-module-manifest.js`，扫描 bootstrap/loader/internal/builtins 并记录
+    SHA-256；`make test` 增加清单自校验）、`service-src/js-runtime.c` 与
+    `skynetcore.runtime.*` 原语（exit/exitCode/argv/info/hrtime/environ/
+    readModuleSource，开发期 `jsModuleSource=disk`），并新增 features 冒烟场景。
+    本批不改旧调用方；完整 `skynetcore` 分组与能力表在 NC0.3 收敛。
+18. **Node 兼容层 NC0.2：CommonJS loader 自举**（2026-09-24）：新增
+    `js/loader.js`（Module 解析/缓存/包装、相对与绝对路径、目录与
+    `package.json#main`、JSON 模块、基础 `node_modules` 查找、循环引用与模块局部
+    `require`）、`js/internal/module-registry.js`（内建/私 internal 规则表）与
+    `js/internal/path-posix.js`（与未来 `path` 共用的 POSIX 语义）；`snjs.c` 以普通
+    脚本装载 loader，经 `js/bootstrap.js` 注册内建表并运行服务入口，同时用隐藏
+    `__snjs_realpath` 收敛 C/JS 路径。CJS wrapper 保留模块自身 strict 语义；用户模块
+    访问 `internal/*`/`node:internal/*` 会被拒绝。新增 module-system 场景覆盖缓存、
+    循环、五件套、JSON/目录、权限与泄漏；ESLint 允许 QuickJS 侧 CJS 包装参数。
+    旧 lazy global 注入原样保留，调用方迁移留待 NC0.7/NC0.8。

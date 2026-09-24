@@ -38,6 +38,20 @@ declare class LuaTable<V = unknown> {
     toJSON(): Record<string, V>;
 }
 
+interface RuntimeInfoResult {
+    version: string;
+    platform: string;
+    arch: string;
+    pid: number;
+    ppid: number;
+    execPath: string;
+    uptime: number;
+}
+
+interface SkynetFeatureTable {
+    version: string;
+}
+
 declare const skynetcore: {
     /** 发送消息；顺序与底层一致：dest, type, msg, session（0=fire-and-forget） */
     send(dest: number, type: number, msg: string | ArrayBuffer | null,
@@ -61,6 +75,16 @@ declare const skynetcore: {
     unpack(buf: ArrayBuffer | string): unknown[];
     /** ArrayBuffer 按 UTF-8 解码为字符串 */
     str(buf: ArrayBuffer): string;
+    /** Runtime/process foundation (js-runtime.c) */
+    runtime: {
+        exit(code?: number): void;
+        exitCode(code: number): void;
+        argv(): string[];
+        info(): RuntimeInfoResult;
+        hrtime(): [number, number];
+        environ(): Record<string, string>;
+        readModuleSource(id: string): string | null;
+    };
     /** C-layer synchronous I/O primitives (js-io.c) */
     io: {
         readFile(path: string): ArrayBuffer;
@@ -235,6 +259,9 @@ declare const io: {
 };
 
 declare const skynet: {
+    version: string;
+    /** 初始能力表；NC0.3 后包含各能力 available/reason/version */
+    features(): SkynetFeatureTable;
     PTYPE_TEXT: number;
     PTYPE_RESPONSE: number;
     PTYPE_ERROR: number;
