@@ -260,3 +260,7 @@
     `js/websocket.js` → `js/internal/websocket-core.js`；保留旧
     `globalThis.websocket` 与 CJS 导出，Makefile/`snjs.c` 默认路径与嵌入查找同步。
     http/ws 场景经网络环境复跑全绿。
+30. **Node 兼容层 NC0.7-8：skynet 全局内核过渡落位**（2026-09-24）：
+    `js/skynet.js` 内核迁入 `js/internal/skynet-core.js`，`js/skynet.js` 保留为
+    require shim；`snjs.c` 默认 `jsLoader`、嵌入查找与 Makefile 字节码源同步
+    指向新路径。bootstrap 显式 require 内核，旧全局 skynet/dispatch 契约不变。

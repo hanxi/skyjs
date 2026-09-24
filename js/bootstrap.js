@@ -10,6 +10,7 @@ const processModule = require("./internal/process.js");
 const textCodec = require("./internal/text-codec.js");
 const abort = require("./internal/abort.js");
 const bufferCore = require("./internal/buffer-core.js");
+require("./internal/skynet-core.js");
 
 function assertReadyGlobal(name) {
     if (typeof globalThis[name] === "undefined") {
