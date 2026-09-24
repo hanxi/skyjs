@@ -67,6 +67,9 @@ build/          # 中间产物（gitignore）
 `send / redirect / command / intCommand / genId / now / error / mem / response /
 errorResponse / pack / unpack / str` 与旧 `io`/`socket` 别名在 NC0.8 收敛前继续双挂。
 `skynet.features()` 返回当前构建能力表，版本号由构建期注入。
+NC0.4 起 `internal/event-loop.js` 是唯一 tick 入口：C 侧 worker 边界调用它，
+顺序固定为 nextTick/microtask → immediate → 到期 timer；定时器经 `TIMEOUT(0)`
+自唤醒，`process.nextTick` 由独立队列先于 Promise microtask 排空。
 
 JS 侧加载顺序（env 键 `jsLoader` → `jsSocket` → `jsCluster` → `jsGateserver` → 用户脚本）：
 `js/skynet.js` 定义 `globalThis.skynet` 与内部路由；`socket.js`/`cluster.js`/`gateserver.js`

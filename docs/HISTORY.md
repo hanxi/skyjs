@@ -212,3 +212,11 @@
     `available:false` + `ERR_UNSUPPORTED_PLATFORM`，`cryptExt` 随 OpenSSL 开关），
     构建期从 `package.json` 注入版本号；`js/skyjs.d.ts` 同步分组与能力表类型。
     新增 skynetcore-groups 验收覆盖新旧名同值、seri round-trip 与 features 报告。
+20. **Node 兼容层 NC0.4：事件循环、定时器与 nextTick**（2026-09-24）：新增
+    `js/internal/event-loop.js` 统一 tick 入口，顺序固定为 nextTick → Promise
+    microtask → immediate → 到期 timer；`setTimeout`/`clearTimeout`/`setInterval`/
+    `clearInterval`/`setImmediate`/`clearImmediate`/`queueMicrotask`/
+    `process.nextTick` 与 ref/unref/refresh 全局落地。
+    `snjs.c` 的 worker 边界统一调用 event loop，pending-job drain 收敛为共享 helper；
+    `js/bootstrap.js` 安装全局并注入内部 tick/drain 钩子。新增 timers 场景覆盖纯
+    定时器自推进、immediate 先于 timeout(0)、nextTick/microtask/timer 顺序。

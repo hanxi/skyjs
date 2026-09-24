@@ -469,6 +469,35 @@ js_load_runtime(JSContext *ctx, JSValueConst this_val,
 	return JS_UNDEFINED;
 }
 
+static int
+drain_pending_jobs(struct snjs *l) {
+	JSContext *c1;
+	int status = 0;
+	for (;;) {
+		if (ATOM_LOAD(&l->trap)) {
+			ATOM_STORE(&l->trap, 0);
+			skynet_error(l->ctx, "snjs pending job loop interrupted");
+			skynet_command(l->ctx, "EXIT", NULL);
+			return -1;
+		}
+		status = JS_ExecutePendingJob(l->rt, &c1);
+		if (status <= 0) break;
+	}
+	if (status < 0) {
+		dump_exception(l, "snjs pending job error");
+		return -1;
+	}
+	return 0;
+}
+
+static JSValue
+js_drain_jobs(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	struct snjs *l = getinst(ctx);
+	(void)this_val; (void)argc; (void)argv;
+	(void)drain_pending_jobs(l);
+	return JS_UNDEFINED;
+}
+
 static JSValue
 js_feature(JSContext *ctx, int available, const char *reason, const char *version) {
 	JSValue feature = JS_NewObject(ctx);
@@ -538,6 +567,12 @@ register_bridge(struct snjs *l) {
 		JS_NewCFunction(l->jsc, js_features, "features", 0));
 
 	register_net_bridge(l->jsc, obj);
+	{
+		JSValue g = JS_GetGlobalObject(l->jsc);
+		JS_SetPropertyStr(l->jsc, g, "__snjs_drain_jobs",
+			JS_NewCFunction(l->jsc, js_drain_jobs, "__snjs_drain_jobs", 0));
+		JS_FreeValue(l->jsc, g);
+	}
 	// js-runtime primitives (process/module-source foundation)
 	register_runtime_bridge(l, obj);
 
@@ -557,6 +592,24 @@ register_bridge(struct snjs *l) {
 }
 
 /* ------------------------------------------------------------------ worker */
+
+static void
+call_event_loop_tick(struct snjs *l) {
+	JSValue g = JS_GetGlobalObject(l->jsc);
+	JSValue tick = JS_GetPropertyStr(l->jsc, g, "__snjs_event_loop_tick");
+	if (JS_IsFunction(l->jsc, tick)) {
+		JSValue ret = JS_Call(l->jsc, tick, JS_UNDEFINED, 0, NULL);
+		if (JS_IsException(ret)) {
+			dump_exception(l, "snjs event loop error");
+		} else {
+			JS_FreeValue(l->jsc, ret);
+		}
+	} else {
+		(void)drain_pending_jobs(l);
+	}
+	JS_FreeValue(l->jsc, tick);
+	JS_FreeValue(l->jsc, g);
+}
 
 static int
 worker_cb(struct skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
@@ -640,25 +693,10 @@ worker_cb(struct skynet_context *ctx, void *ud, int type, int session, uint32_t 
 		}
 	}
 	JS_FreeValue(l->jsc, ret);
-	// Drive pending microtasks. Tiny jobs may not execute enough bytecode for
-	// QuickJS's interrupt poll, so also observe SIGNAL between jobs. The queued
-	// chain cannot be unwound safely at that boundary; retire the service rather
-	// than leave jobs that could resume during a later message.
-	JSContext *c1;
-	int job_status = 0;
-	for (;;) {
-		if (ATOM_LOAD(&l->trap)) {
-			ATOM_STORE(&l->trap, 0);
-			skynet_error(l->ctx, "snjs pending job loop interrupted");
-			skynet_command(ctx, "EXIT", NULL);
-			break;
-		}
-		job_status = JS_ExecutePendingJob(l->rt, &c1);
-		if (job_status <= 0) break;
-	}
-	if (job_status < 0) {
-		dump_exception(l, "snjs pending job error");
-	}
+	// The event loop owns nextTick/microtask/immediate/timer ordering. The
+	// fallback (when js/skynet.js did not install it, e.g. a custom loader)
+	// still drains QuickJS jobs at the message boundary.
+	call_event_loop_tick(l);
 	return 0;
 }
 

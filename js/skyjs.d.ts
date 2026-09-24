@@ -54,6 +54,35 @@ interface SkynetFeature {
     version?: string;
 }
 
+interface TimerHandle {
+    ref(): TimerHandle;
+    unref(): TimerHandle;
+    hasRef(): boolean;
+    refresh(): TimerHandle;
+}
+
+interface ImmediateHandle {
+    ref(): ImmediateHandle;
+    unref(): ImmediateHandle;
+    hasRef(): boolean;
+}
+
+interface ProcessShim {
+    nextTick(callback: (...args: unknown[]) => void, ...args: unknown[]): void;
+}
+
+declare const process: ProcessShim;
+declare function setTimeout(callback: (...args: unknown[]) => void, delay?: number,
+    ...args: unknown[]): TimerHandle;
+declare function clearTimeout(handle: TimerHandle): void;
+declare function setInterval(callback: (...args: unknown[]) => void, delay?: number,
+    ...args: unknown[]): TimerHandle;
+declare function clearInterval(handle: TimerHandle): void;
+declare function setImmediate(callback: (...args: unknown[]) => void,
+    ...args: unknown[]): ImmediateHandle;
+declare function clearImmediate(handle: ImmediateHandle): void;
+declare function queueMicrotask(callback: () => void): void;
+
 interface SkynetFeatureTable {
     version: string;
     sqlite: SkynetFeature;
