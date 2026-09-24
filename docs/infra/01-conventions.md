@@ -8,8 +8,7 @@
   项目目标为兼容 Node 代码（LLRT 路线），命名对齐 JS 生态惯例；C 源码内部命名
   （`js_*`/`snjs_*`）保持 C 规范不变。
 - **冻结域**（字符串字面量逐字保留）：env/config 键（`jsBootstrap`、`jsModuleRoot`、
-  `jsModuleSource`、`extpath`、`cpath`、`jsMemLimit`、`__json_config`…）；线协议与命令串（skynet 命令、
-  cluster 帧、tls "client"/"server"、HTTP/WS header 名）；测试验收标记串。
+  `jsModuleSource`、`extpath`、`cpath`、`jsMemLimit`、`__json_config`…）；线协议与命令串（skynet 命令、cluster 帧）；测试验收标记串。
   算子/架构域名词白名单：`iso7816_4`、`x86_64` 等保留原名。
 - **Node 规范名是外部契约**：`child_process`、`fs/promises`、`http` 等模块名与
   `AbortSignal` 等全局名逐字沿用 Node，不套用本项目 camelCase 规则。
@@ -169,8 +168,13 @@ skynet                                                # Actor 运行时入口契
 
 ### 3.3 协议串冻结范围
 
-skynet 命令、cluster 帧、tls `"client"`/`"server"`、HTTP/WS header 名仍属冻结域。
-但 **`js/io.js` ↔ `js/ioservice.js` 的旧 RPC op 串（`"read_file"` 等）不再是冻结域**：
+仅 **skynet 命令与 cluster 帧** 属冻结域：前者是零修改 `3rd/skynet` 内核
+`skynet_command()` 的入参，后者是与原版节点互通的线协议字节，两者都不由本项目决定。
+tls `"client"`/`"server"` 不设冻结——它只是 `js-tls.c` 的 C↔JS 内部参数串，
+由"JS/C 同步改名"的一般规则约束；HTTP/WS 协议常量（header 名、握手 GUID 等）
+不设冻结——它们是 RFC 7230/6455 定义的标准格式（header 名线上大小写不敏感），
+照规范实现即可。
+**`js/io.js` ↔ `js/ioservice.js` 的旧 RPC op 串（`"read_file"` 等）同样不是冻结域**：
 `.fs` owner 随重构新建，直接采用 `op: "stat" | "open" | "read" | …` 的清晰枚举，
 不续用旧扁平字符串表。旧的 `io`/`ioservice` 入口一并移除。
 

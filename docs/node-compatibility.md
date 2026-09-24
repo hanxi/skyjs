@@ -63,7 +63,7 @@ manifest 与白名单决定实际可见的 Node 全局对象和内置模块。
 
 ```js
 module, exports, require, __filename, __dirname
-global, process, Buffer, Blob, File
+global, process, console, Buffer, Blob, File
 setTimeout, clearTimeout, setInterval, clearInterval
 setImmediate, clearImmediate, queueMicrotask
 URL, URLSearchParams
@@ -71,15 +71,20 @@ AbortController, AbortSignal
 TextEncoder, TextDecoder
 ```
 
-`require` 必须保持模块局部变量，不提升为全局变量。
+`require` 必须保持模块局部变量，不提升为全局变量。`console` 由 `builtins/console.js`
+提供（映射 skynet 日志通道，实现自 `js/skynet.js` 迁入），`bootstrap` require 后挂
+`globalThis.console`。`Buffer` 全局 NC0 落地，`Blob`/`File` 全局随 NC1 的
+`require('buffer')` 入口补齐（§13）。
 
 首批全局对象以 Node 20 规范名为准；`fetch`、`WebSocket`、`structuredClone` 等在对应
 模块落地后再加入全局，不提前占名。`globalThis` 只保留本表与 `skynet`，其余能力一律
 `require`。
 
-引导由 `js/bootstrap.js` 完成，不走 C 侧逐库懒加载：C 侧只创建 `process` 与
-`skynet`，随后 `js/bootstrap.js` 建立 loader、注册内置模块表、require 服务入口，
-并装配上表其余全局对象。模块 id 到实现的映射固定为（唯一定义处是
+引导不走 C 侧逐库懒加载。自举顺序固定为：C 侧注册 `skynetcore` 原生桥、创建
+`process` 与 `skynet`，以**非模块脚本**装载 `js/loader.js`（loader 是模块系统本体，
+不能经 `require` 加载自身），再由 loader `require('js/bootstrap.js')`；bootstrap
+以普通模块身份运行：注册内置模块表、装配上表全局对象、require 服务入口。
+模块 id 到实现的映射固定为（唯一定义处是
 `js/internal/module-registry.js`）。映射按规则，而不是逐条硬编码：
 
 | 模块 id 形式 | 实现位置 | 实例 |
@@ -391,7 +396,7 @@ infra 01 §3）：
   `include/skyjs-ext.h`（定义 `SKYJS_EXT_ABI_VERSION`、两个入口的声明、导出宏
   `SKYJS_EXT_EXPORT`——Windows 下展开为 `__declspec(dllexport)`，其它平台展开为
   `__attribute__((visibility("default")))`/空），以及随附的 `quickjs.h` /
-  `quickjs-libc.h`（构建期从 `3rd/quickjs` 复制，版本随运行时冻结）。扩展源码只写
+  `quickjs-libc.h`（构建期从 `3rd/quickjs` 复制，始终与运行时内置 quickjs 同版本）。扩展源码只写
   `#include "skyjs-ext.h"`，`JS_*` 符号在桌面链接期解析到主程序导出表或 import
   library，静态构建则由构建脚本一并链入。
 - **MinGW 需要单独分支**：skynet 自带的 `3rd/skynet/3rd/compat-mingw/dlfcn.c`
@@ -658,14 +663,17 @@ process.exit(code)    // 以 code 作为宿主进程退出码
   运行时仍保证退出码已写入且不再执行任何回调，宿主照常退出；该差异写入兼容差异表
   （§12 验收项按"退出码正确"而非"永不返回"判定）。
 - 插件 VM 不暴露该原语（见 §11），插件内的 `process.exit` 只能是受限 facade。
+
 ### 4.2 `process.env`
 
-**决策：Actor 局部环境快照。**
+**决策：宿主 environ 的 Actor 局部快照。**
 
-- `process.env` 初始值来自服务启动时的环境配置快照。
-- 对 `process.env` 的写入或删除只影响当前 Actor 的局部视图。
-- 不修改全局 Skynet 环境配置。
-- 后续 `child_process` 等子进程能力使用当前局部视图。
+- `process.env` 初始值来自**宿主进程 environ**（非 skynet 配置域）在服务启动时刻的
+  拷贝，`PATH`/`HOME` 等保持可用；skynet 配置键不进 `process.env`，仍走
+  `skynet.getenv`。
+- 对 `process.env` 的写入或删除只影响当前 Actor 的局部视图：不修改宿主环境，
+  不影响其他 Actor；快照之后宿主侧 `setenv` 的变化不反映进来。
+- 后续 `child_process` 等子进程能力默认使用当前 Actor 的局部视图。
 
 ### 4.3 `process.cwd()` 与 `process.chdir()`
 
@@ -704,12 +712,12 @@ process.argv = [execPath, scriptPath, ...bootstrapArgs]
 | `process.pid` | 宿主进程 pid（同一宿主内所有 Actor 相同） | `skynetcore.runtime.info()` |
 | `process.ppid` | 宿主父进程 pid | `skynetcore.runtime.info()` |
 | `process.argv` / `process.argv0` / `process.execPath` | 按 §4.4 的 Actor 局部语义 | `skynetcore.runtime.argv()` |
-| `process.env` | 按 §4.2 的 Actor 局部快照 | skynet env 快照 |
+| `process.env` | 按 §4.2 的 Actor 局部快照 | `skynetcore.runtime.environ()` |
 | `process.cwd()` / `process.chdir()` | 按 §4.3 | 运行时信息 + `ERR_UNSUPPORTED_PLATFORM` |
 | `process.exit()` | 按 §4.1 | `skynetcore.runtime.exit()` |
 | `process.nextTick()` | 按 §5.3 | `internal/event-loop` |
 | `process.exitCode` | 可写；写入 §4.1 的进程级退出码槽位，宿主自然关停时生效（默认 0）。`process.exit()` 立即终止，忽略此值 | `skynetcore.runtime.exitCode` |
-| `process.hrtime.bigint()` | 单调纳秒计数，供基准与超时使用 | `skynetcore.runtime.hrtime()` |
+| `process.hrtime()` / `process.hrtime.bigint()` | 单调时钟：`[秒, 纳秒]` 数组 / 纳秒 bigint，供基准与超时使用 | `skynetcore.runtime.hrtime()` |
 | `process.memoryUsage()` | 至少 `{ rss, heapTotal, heapUsed, external }`，单位字节 | `skynetcore.runtime.mem()` + QuickJS 内存统计（原扁平名 `skynetcore.mem()`，见 §16.5） |
 | `process.uptime()` | 宿主进程已运行秒数 | `skynetcore.runtime.info()` |
 | `process.stdout` / `process.stderr` | 映射到 skynet 日志通道；NC0 提供 `write()`/`isTTY=false`/事件订阅的最小可写实现，NC2 起换成 `internal/stream-core` 的完整 `Writable` | `internal/event-loop`（NC0）→ `internal/stream-core`（NC2） |
@@ -743,7 +751,9 @@ process.argv = [execPath, scriptPath, ...bootstrapArgs]
 - 外部接口使用毫秒，内部映射到 SkyJS 定时器精度（`skynet.timeout` 的 10 ms 单位）。
 - 首版定时器精度即 10 ms，向上取整到下一个 tick；小于 10 ms 的延时按 10 ms 处理。
   该差异写入兼容差异表，不承诺亚 10 ms 精度。
-- `setImmediate` 在当前回调与已排队的 microtask 之后执行。
+- `setImmediate` 在当前回调与已排队的 microtask 之后执行；与到期 `setTimeout(0)`
+  的相对顺序固定为 immediate 先（tick 顺序 nextTick → microtask → immediate →
+  到期定时器，§16.7）。Node 本就不保证两者顺序，此固定选择写入差异表（§12.1）。
 - `process.nextTick` 不直接映射为 `queueMicrotask`，按 §5.3 的独立队列实现。
 - 不追求 libuv 全部阶段的严格复刻，只保证 nextTick 与 Promise microtask 的相对优先级。
 
@@ -815,20 +825,14 @@ err.detail.skyjsCode = "ERR_NOT_FOUND";
 
 ### 7.1 基础语义
 
-`Buffer` 应为 `Uint8Array` 子类，并支持常用 Node 20 API。
+`Buffer` 是 `Uint8Array` 子类，覆盖面与 `fs` 同口径：**Node 20 `buffer` 模块公开
+API 全覆盖**——全部静态与实例方法（含 `read*`/`write*` 系列）、`base64`/`base64url`/
+`hex` 等编码、`Blob`/`File`、`constants`、`kMaxLength`、`isAscii`/`isUtf8` 均在
+范围内。明确例外记入差异表（§12.1）：
 
-目标：
-
-- `Buffer.from`
-- `Buffer.alloc`
-- `Buffer.allocUnsafe`
-- `Buffer.byteLength`
-- `Buffer.concat`
-- `Buffer.isBuffer`
-- `Buffer.compare`
-- `Buffer.prototype.toString`
-- `Buffer.prototype.equals`
-- `Buffer.prototype.subarray`
+- `SlowBuffer` 已废弃，不实现。
+- `buffer.transcode()` 依赖 ICU，QuickJS 无 ICU，调用抛 `ERR_UNSUPPORTED_PLATFORM`。
+- `Buffer.poolSize` 保留字段但不池化（§7.2 零初始化约束下池化无意义）。
 
 ### 7.2 安全约束
 
@@ -884,7 +888,10 @@ const b = Buffer.allocUnsafe(16); // Node 不保证内容；SkyJS 初始方案�
 - 同步 API 落到 `skynetcore.fs` 原语（原 `skynetcore.io`，见 §16.5 重命名）。
 - 异步 callback/Promise API 落到 `.fs` owner service，经 `fs` 客户端库转发。
 - `createReadStream`/`createWriteStream` 复用 `stream` 基础能力与 `.fs`。
-- `watch` 由 `.fs` 持有原生 watcher，事件按平台能力投递。
+- `watch`/`watchFile` 由 `.fs` 持有原生 watcher：C 侧（`js-fs.c`）起 watcher 线程跑
+  平台机制（macOS kqueue `EVFILT_VNODE`；Linux 预留 inotify，按平台基线未实测不
+  承诺），事件经 skynet 消息队列注入 `.fs` owner——与 socket_server 线程注入
+  SOCKET 消息同一机制，不改内核事件循环。
 
 完整 `fs` 还依赖 Node 全局 `Blob`：`fs.openAsBlob()` 的返回类型是 `Blob`，因此
 `Blob`/`File` 与 `require('buffer')` 必须在 NC2 之前落地，不能把 `openAsBlob`
@@ -915,7 +922,7 @@ const b = Buffer.allocUnsafe(16); // Node 不保证内容；SkyJS 初始方案�
 - 文件句柄级原语：`fchmod`/`fchown`/`futimes`/`fdatasync`、`readv`/`writev` 的
   等价能力，或由 owner service 内实现组合。
 - 元数据：`chown`/`lchown`/`utimes`/`lutimes`/`statfs`，以及 Node `Stats` 的完整字段。
-- 监听：`watch`/`watchFile` 的原生 watcher 生命周期、事件合并与取消清理。
+- 监听：`watch`/`watchFile` 的原生 watcher 生命周期、事件合并与取消清理（watcher 线程 + 消息注入，§8）。
 - 流：`createReadStream`/`createWriteStream` 的 `start`/`end`/`highWaterMark`/错误传播
   与 `.fs` fd 生命周期衔接。
 - 错误映射：底层 `ERR_NOT_FOUND`/`ERR_PERMISSION`/`ERR_IO` 到 Node `ENOENT`/
@@ -942,6 +949,11 @@ const b = Buffer.allocUnsafe(16); // Node 不保证内容；SkyJS 初始方案�
 
 模块缓存按 `realpath` 规范化后的绝对路径索引，避免软链接导致同一模块产生多个
 实例。支持循环引用时返回部分初始化的 `module.exports`。
+
+缓存键与 `__filename` 按来源区分：文件系统模块用 `realpath` 后的绝对路径；内建与
+构建期清单模块（`jsModuleSource=embedded` 时没有文件路径）用模块 id 本身
+（如 `"fs/promises"`、`"skyjs/fsx"`），此时 `__filename` 即模块 id、`__dirname`
+为 id 的目录部分，内建模块内的相对 `require` 按 id 路径解析。
 
 ### 9.2 解析规则
 
@@ -980,6 +992,7 @@ const b = Buffer.allocUnsafe(16); // Node 不保证内容；SkyJS 初始方案�
 | 模块 | 批次 | 说明 |
 |---|---|---|
 | `events` | NC0 | EventEmitter 基础语义 |
+| `console` | NC0 | 映射 skynet 日志通道；同时经全局 `console` 暴露（§3） |
 | `buffer` | NC0（全局）/ NC1（`require`） | `Buffer` 构造器与 `Blob`/`File`/`constants`；全局 `Buffer`/`Blob`/`File` 由其提供。内核 NC0 随全局装配落地，`require('buffer')` 入口 NC1 补齐 |
 | `util` | NC1 | promisify、callbackify、format、types 等 |
 | `path` | NC1 | 平台路径语义 |
@@ -1111,9 +1124,13 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 |---|---|---|---|
 | `process.exit()` 中途打断 | 立即结束进程，`try/catch` 无法拦截 | 写退出码 + `ABORT` + 抛内部哨兵；用户 `try/catch` 可拦截哨兵，但退出码生效且不再执行后续回调 | QuickJS 没有不可捕获异常（ND-19） |
 | `Buffer.allocUnsafe` 内容 | 不保证，可能是陈旧内存 | 保证零初始化 | 避免跨 Actor 内存泄露（ND-8） |
+| `SlowBuffer` | 存在（已废弃） | 不实现 | Node 已废弃（§7.1） |
+| `buffer.transcode()` | 依赖 ICU 的编码转码 | 抛 `ERR_UNSUPPORTED_PLATFORM` | QuickJS 无 ICU（§7.1） |
+| `Buffer.poolSize` | 池化阈值可调 | 保留字段但不池化 | 零初始化约束下不引入池化（§7.2） |
 | 定时器精度 | 毫秒级，通常亚毫秒触发 | 10 ms 粒度，向上取整 | `skynet.timeout` 的 10 ms 单位 |
+| `setImmediate` 与 `setTimeout(0)` 相对顺序 | 不保证 | 固定 immediate 先（§16.7 tick 顺序） | Node 未定义顺序，SkyJS 取固定顺序避免抖动（§5.2） |
 | `process.cwd()`/`chdir()` | 进程级 cwd | Actor 局部 cwd，`chdir()` 抛 `ERR_UNSUPPORTED_PLATFORM` | 进程级 cwd 与 Actor 隔离冲突 |
-| `process.env` | 进程级可变环境 | Actor 局部快照 | 同上 |
+| `process.env` | 进程级可变环境 | 宿主 environ 的 Actor 局部快照；写入不影响宿主与其他 Actor；快照后宿主 `setenv` 不反映 | 进程级环境与 Actor 隔离冲突 |
 | `process.argv` | 宿主进程 argv | Actor 局部 argv | 同上 |
 | `process.stdin` | 可读流 | `null` | Actor 模型下无统一控制台输入（§4.5） |
 | `os.*`/`fs.*` 平台缺失能力 | 平台原生行为 | 抛 `ERR_UNSUPPORTED_PLATFORM` 或按 Node 平台语义抛 `ENOSYS`，不改静默降级 | 平台差异需显式可见 |
@@ -1127,6 +1144,15 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 首版发布门禁为 NC0–NC2，其中 NC2 的完整 `fs` 不允许拆分后置。NC3/NC4 在首版门禁
 之后按批次推进；它们即使提前完成，也不改变首版门禁的定义。
 
+各批次的子批拆分、文件级任务、验收命令与提交策略见
+[node-compatibility-plan.md](node-compatibility-plan.md)（执行计划；本文仍是架构
+与出口标准的唯一定义处）。
+
+插件宿主（`service/plugin-manager.js`、`skyjs/pluginHost`、snplugin loader）属
+[infra/09-plugin-host.md](infra/09-plugin-host.md) 的独立线，不在 NC0–NC5 排期；
+§11 的插件安全约束随该线落地而生效，不阻塞首版门禁。在此之前，§16.4.4 "引擎
+`service/` 恰好 3 个文件" 的计数按 2 个执行（`.fs` 与 `.subprocess`）。
+
 ### NC0
 
 - 交付：`js/loader.js` + `js/bootstrap.js` + 构建期模块清单；CJS 包装器、缓存、
@@ -1135,6 +1161,11 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
   `events`；`internal/event-loop` 统一 tick 入口。`Buffer` 内核以
   `js/internal/buffer-core.js` 形式在本批落地并作为全局 `Buffer` 暴露；
   `require('buffer')` 入口在 NC1 补齐（含 `Blob`/`File`）。
+  `skynetcore` 按 §16.5 分组重命名（`io`→`fs`、`socket`→`net`、
+  `pack`/`unpack`/`str`→`seri`，新建 `js-runtime.c` 提供 `runtime.*`）与
+  `skynet.features()`（infra/01 §5）同批完成——两者一次性触碰所有 facade，
+  必须在后续批次铺开前收敛。现有 `js/*.js` 全部改为 require 形态（过渡形态见
+  §16.11）；`js/skyjs.d.ts` 开始拆分为 `js/types/*.d.ts`，随各模块批次同步补齐。
 - 出口：现有 `test/config-*.json` 全部迁移到 `require` 入口且不回归；纯定时器程序
   能自行推进（不依赖外部消息）；`process.exit(3)` 能以 3 退出宿主。
 
@@ -1142,20 +1173,24 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 
 - 交付：基础 `node_modules` 查找；`buffer`（含全局 `Blob`/`File`，
   `fs.openAsBlob` 的前置）；`path`/`util`/`url`/`querystring`/`os`；
-  `internal/errors` 的 Node errno/code 构造与映射表。
-- 出口：`test/unit/` 纯逻辑用例在 Node 20 与 SkyJS 两侧结果一致；
-  `node_modules` 查找覆盖包名、`@scope/name`、子路径与 `package.json#main`；
-  `require('buffer')` 与全局 `Buffer`/`Blob`/`File` 是同一实现的两个入口。
+  `internal/errors` 的 Node errno/code 构造与映射表；`internal/binary-frame`
+  二进制通道（§16.12 顺序 4 的"NC1 收尾"由此落实）；`skyjs/log` 与
+  `skyjs/testing` 两个内建入口。
+- 出口：`test/unit/` 纯逻辑用例 `node --test` 通过（单侧运行，Node 即真值，
+  §16.10）；`path`/`querystring`/`url`/`errors` 等 Node 面向用例落
+  `test/node-compat/`，在 Node 20 与 SkyJS 两侧对拍一致；`node_modules` 查找
+  覆盖包名、`@scope/name`、子路径与 `package.json#main`；`require('buffer')`
+  与全局 `Buffer`/`Blob`/`File` 是同一实现的两个入口。
 
 ### NC2
 
 - 交付：`internal/stream-core` + `require('stream')` facade；`internal/fs-core` +
-  `service/fs-service.js`（`.fs`）+ `internal/binary-frame` 二进制通道；完整
+  `service/fs-service.js`（`.fs`）+ `internal/permission.js` 权限层（`internal/binary-frame` 已于 NC1 交付，本批直接使用）；完整
   `fs`：callback/sync/Promise、`fs/promises`、`FileHandle`、
   `createReadStream`/`createWriteStream`、`watch`/`watchFile`、
   `constants`/`Stats`/`Dirent`。
 - 出口：Node 20 `fs` 公开 API 逐项对照通过（`test/node-compat/`）；1 GiB 流经
-  `pipe` 时 JS 堆有界；权限拒绝与取消后 fd 无泄漏。**本批不允许只交
+  `pipe` 时 JS 堆增量 < 64 MB（`skynetcore.runtime.mem()` 计量）；权限拒绝与取消后 fd 无泄漏。**本批不允许只交
   `fs/promises` 而把 callback/sync 后置。**
 
 ### NC3
@@ -1168,8 +1203,8 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 
 ### NC4
 
-- 交付：`internal/net-core`（合并 `js/socket.js` + `js/sockethelper.js`）与
-  `skynetcore.net` 重命名；`internal/http-core` 与 `require('http')`/`https`；
+- 交付：`internal/net-core`（合并 `js/socket.js` + `js/sockethelper.js`；
+  `skynetcore.net` 重命名已于 NC0 完成）；`internal/http-core` 与 `require('http')`/`https`；
   `require('net')`/`tls`；`internal/crypt-core` 与 `require('crypto')`/`zlib`；
   全局 `fetch`。
 - 出口：`http` server/client 常用子集对拍 Node；keep-alive 与断连取消的 fd/内存
@@ -1220,7 +1255,7 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 | ND-19 | `process.exit()` 如何在 QuickJS 中打断当前回调链 | 写退出码 + 触发 ABORT + 抛内部哨兵异常，运行时边界吞掉；QuickJS 无不可捕获异常，用户 `try/catch` 可拦截哨兵，但退出码与"不再执行后续回调"仍保证 | 已确认 |
 | ND-20 | `os` 模块是否进入初始范围 | 进入 NC1：交付 `platform`/`arch`/`tmpdir`/`homedir`/`EOL` 等稳定子集，数据源与 `process` 共用 `skynetcore.runtime.info()` | 已确认 |
 | ND-21 | `skyjs/media`、`skyjs/tag` 这类模块是否走 `node_modules` | **可以走**。`skyjs/*` 是保留说明符命名空间；解析为"内建表优先，未收录则回退 `@skyjs/<name>` 包"。内建发行与 npm 分发并存，按模块逐项选型（§3.1） | 已确认 |
-| ND-22 | 多文件的模块用单文件还是目录形式 | 用目录形式：内建为 `js/builtins/skyjs/<name>/index.js`，包为 `packages/<name>/index.js` + 子文件（与 Node 面多文件模块同约定）。引擎内建无多文件入口；`media`/`tag`/`webapp`/`db`/`archive` 等包均属此类 | 已确认 |
+| ND-22 | 多文件的模块用单文件还是目录形式 | 用目录形式：内建为 `js/builtins/skyjs/<name>/index.js`，包为 `packages/<name>/index.js` + 子文件（与 Node 面多文件模块同约定）。首版 8 个内建入口均为单文件；后续若拆多文件改目录形式，入口名不变（§16.11）；`media`/`tag`/`webapp`/`db`/`archive` 等包均属此类 | 已确认 |
 | ND-23 | 长驻原生模块（`media`/`tag` 的 owner 部分）如何随 npm 包分发 | 走 cservice ABI，三种形态：预编译 `.so`（cpath 可指向 `node_modules`）、静态库（构建期链入，用于移动端）、随包携带 C/C++ 源码（构建期编译）。不采用 N-API/node-gyp 路线（§3.2） | 已确认 |
 | ND-24 | 内建发行与 npm 分发的选择原则 | 两者都支持，按模块选型；默认构建/移动端/需 `features()` 精确报告时优先内建；独立迭代/按需安装时用 `@skyjs/<name>`。`skyjs/*` 入口名始终保留（§3.1） | 已确认 |
 | ND-25 | npm 分发的 facade 与原生 ABI 版本如何约束 | `peerDependencies` 锁定运行时版本区间；原生产物带 ABI 版本号运行时校验；`features()` 区分"包未安装"与"能力未编入"（§3.3） | 已确认 |
@@ -1232,6 +1267,11 @@ skynetcore.subprocess（POSIX posix_spawn / Windows CreateProcess）
 | ND-31 | 静态路径与动态路径是"二选一开关"还是"静态优先、动态兜底" | 静态优先、动态兜底。`extpath` 只约束动态这一步，为空时静态登记的包照常可用；`skynetcore.native.enabled()` 只表示编入了 `NATIVE_EXT=1`，两条路径的可用性另由 `dynamicEnabled()`（`enabled()` 且 `extpath` 非空）与 `staticEnabled()`（`enabled()` 且静态表非空）分别表示（§3.4.3、§3.4.5） | 已确认 |
 | ND-32 | `skynetcore.native.*` 是否构成 §3.5 禁止的"任意符号调用"口子 | 不构成，且不必为此加沙箱。它是"只加载"而非"任意调用"：`abi()`/`init()` 的符号名写死为 `skyjs_ext_abi`/`skyjs_ext_init`，无原语接受调用方给的符号名，也不把符号地址交给 JS（`handle` 不透明）。它挂在 `skynetcore` 全局下、无公开模块入口，对受信服务脚本可见但对插件 VM 不可见；"仅 loader 调用"是契约约定而非沙箱边界（§3.4.5、§3.5） | 已确认 |
 | ND-33 | 哪些 `skyjs/*` 入口内建、哪些走 `@skyjs` 包 | 引擎只内建 8 个承重入口：`fsx`/`subprocess`/`crypt`（与层 1 模块共用 owner/内核）、`cluster`/`gateserver`（Actor 运行时契约）、`pluginHost`（插件安全边界）、`log`/`testing`（直接绑引擎原语）。其余 `webapp`/`websocket`/`archive`/`config`/`metrics`/`db`/`media`/`tag` 一律落 `packages/<name>/`，发布为 `@skyjs/<name>`，loader 按 §3.1 回退解析。判据见 §16.4.1，引擎逐目录/逐文件清单见 §16.4.2，逐包实现清单见 §16.4.3.1，落码前的边界检查清单见 §16.4.4；“删掉 `packages/` 引擎仍可构建启动”是收口标准。包只依赖 L4 公开面，不得 `require('js/internal/*')` 或直接调 `skynetcore.*` | 已确认 |
+| ND-34 | `process.env` 的数据源 | 宿主进程 environ 在服务启动时刻的 Actor 局部快照；skynet 配置键不进入，仍走 `skynet.getenv`（§4.2） | 已确认 |
+| ND-35 | `buffer` 覆盖面 | 与 `fs` 同口径完整覆盖 Node 20 公开 API；`SlowBuffer`/`transcode`/`poolSize` 例外记差异表（§7.1、§12.1） | 已确认 |
+| ND-36 | `fs.watch` 事件如何投递 | C 侧 watcher 线程跑平台机制（macOS kqueue `EVFILT_VNODE`，Linux 预留 inotify），事件经 skynet 消息队列注入 `.fs` owner，不改内核事件循环（§8） | 已确认 |
+| ND-37 | loader 与 bootstrap 的自举顺序 | C 侧以非模块脚本装载 `js/loader.js`，再由 loader `require('js/bootstrap.js')`；loader 不经 `require` 加载自身（§3、§16.3） | 已确认 |
+| ND-38 | 插件宿主是否进 NC 批次 | 不进；属 infra/09 独立线，§11 的插件安全约束随其落地生效，不阻塞首版门禁（§13） | 已确认 |
 
 ## 15. 现状缺口盘点（相对 §16 目标架构）
 
@@ -1272,8 +1312,8 @@ NC1 覆盖纯 JS 模块与错误层；NC2 覆盖流与完整 `fs`；NC3 覆盖�
 | 缺口 | 现状 | 需要做的事 |
 |---|---|---|
 | CommonJS 模块系统 | 只有整段 `JS_Eval` 的全局脚本模式 | 新增模块包装器（`module`/`exports`/`require`/`__filename`/`__dirname`）、按 `realpath` 索引的缓存、解析器与循环引用处理；`require` 必须保持模块局部变量 |
-| `process` | 不存在 | 新建 `process` 对象，成员范围以 §4.5 表为准；`env` 需从 skynet 配置注入，`argv` 从服务启动参数构造，`exit(code)` 走宿主退出 |
-| `Buffer` | 不存在 | `Uint8Array` 子类 + Node 20 常用 API；`allocUnsafe` 首版零初始化；NC0 先供全局，NC1 补 `require('buffer')` |
+| `process` | 不存在 | 新建 `process` 对象，成员范围以 §4.5 表为准；`env` 取宿主 environ 的 Actor 局部快照（§4.2），`argv` 从服务启动参数构造，`exit(code)` 走宿主退出 |
+| `Buffer` | 不存在 | `Uint8Array` 子类 + Node 20 公开 API 全覆盖（例外见 §7.1）；`allocUnsafe` 首版零初始化；NC0 先供全局，NC1 补 `require('buffer')` |
 | 定时器 | 只有协程式 `skynet.timeout`/`skynet.sleep` | 新增回调式 `setTimeout`/`setInterval`/`setImmediate`/`queueMicrotask`，并定义与服务退出、取消的联动 |
 | nextTick 队列 | 与 Promise 共用 QuickJS job 队列 | JS 侧独立队列 + C 侧 drain 钩子（见 §5.3） |
 | 事件循环驱动 | microtask 只在 `worker_cb` 收到消息时被 drain | 定时器到点、流事件、socket 事件等非消息来源也必须进入统一的 tick 入口，否则纯定时器/流程序会"卡住不推进" |
@@ -1290,7 +1330,7 @@ NC1 覆盖纯 JS 模块与错误层；NC2 覆盖流与完整 `fs`；NC3 覆盖�
 | `skynetcore.fs` 原语 | 只有整文件同步读写 | 补 `ftruncate`/`fsync`/`fdatasync`/`realpath`/`chmod`/`fchmod`/`fchown`/`futimes`/`symlink`/`readlink`/`mkstemp`/`statvfs`/`readv`/`writev` 及 `watch` 的原生 watcher |
 | 跨 service 二进制传输 | js-seri 不能 round-trip `ArrayBuffer`，异步 fs 走 base64 | 落地 infra 02 的 `frameEncode`/`frameDecode`（长度前缀 + 二进制体），否则完整 `fs` 与流会在大文件上退化 |
 | 错误映射所需信息 | C 原语抛的是文本 `TypeError`，没有 errno | C 侧返回 errno（或 `errno`+`syscall`+`path` 结构化错误），JS 侧据此构造 Node 风格 `err.code`/`errno`/`syscall`/`path` |
-| 权限与配额 | C 层直接 `fopen`，无路径边界 | 统一权限层：根目录/白名单校验、配额记账、拒绝时映射 `EACCES`/`EPERM`；Node 兼容不得绕过 |
+| 权限与配额 | C 层直接 `fopen`，无路径边界 | 新增 `js/internal/permission.js`（路径边界/配额/能力授权的纯逻辑判定），`.fs`/`.subprocess` owner 与插件宿主共用；拒绝映射 `EACCES`/`EPERM`；Node 兼容不得绕过 |
 
 ### 15.3 NC3：子进程
 
@@ -1338,7 +1378,12 @@ NC1 覆盖纯 JS 模块与错误层；NC2 覆盖流与完整 `fs`；NC3 覆盖�
 ## 16. 目标架构设计（已确认，允许重构现有库）
 
 前提：项目处于开发初期，现有 `io.js`/`http.js`/`websocket.js` 的全局注入形态可以
-推翻重来。本节给出一套面向长期演进的目标架构，而不是在旧结构上打补丁。
+推翻重来。本节给出一套面向长期演进的目标架构，而不是在旧结构上打补丁。**本次重构
+不设旧 API 兼容冻结项**：现有内部接口（全局注入形态、io RPC op 串、每库 env 键等）
+全部按目标架构重写，不留兼容分支。唯一保持逐字不变的是 skynet 线协议与内核命令
+字符串（lua-seri 字节格式、cluster 帧、skynet 命令）——它们由零修改的 `3rd/skynet`
+内核与对端原版节点决定，与本次重构无关，见
+[infra/01-conventions.md](infra/01-conventions.md) §3.3。
 
 ### 16.1 设计原则
 
@@ -1510,8 +1555,8 @@ C 侧只需提供两个能力：`skynetcore.runtime.readModuleSource(id)` 取源
 | 引擎件 | 数量 | 内容 |
 |---|---|---|
 | 自举 JS | 2 | `js/bootstrap.js`、`js/loader.js` |
-| L3 私有内核 | 15 | `js/internal/*.js`（§16.4.2 逐文件表） |
-| L4 模块入口 | 18 + 8 | `js/builtins/**` 的 Node 规范模块 id 18 个（子路径分别计数：`fs`/`fs/promises`、`stream`/`stream/promises`、`http`/`https`…）+ `js/builtins/skyjs/` 恰好 8 个 |
+| L3 私有内核 | 16 | `js/internal/*.js`（§16.4.2 逐文件表） |
+| L4 模块入口 | 19 + 8 | `js/builtins/**` 的 Node 规范模块 id 19 个（子路径分别计数：`fs`/`fs/promises`、`stream`/`stream/promises`、`http`/`https`…）+ `js/builtins/skyjs/` 恰好 8 个 |
 | owner service | 3 | `.fs`、`.subprocess`、`.pluginManager` |
 | C 源与共享头 | 12 | `service-src/`（§16.4.2 逐文件表），其中 `native-registry.c` 构建期生成 |
 | 宿主接入 | 7 文件 | `platform/*.c|*.h`（`mobile/` 为后续新增，不计入） |
@@ -1520,7 +1565,7 @@ C 侧只需提供两个能力：`skynetcore.runtime.readModuleSource(id)` 取源
 ```text
 skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工作区宿主）
 ├── js/                           # 运行时 JS：随产物打包，不作为 npm 包安装
-│   ├── bootstrap.js              # 运行时引导：建 loader、装配全局、require 服务入口
+│   ├── bootstrap.js              # 运行时引导：注册内建表、装配全局、require 服务入口（loader 由 C 侧先行装载，§3）
 │   ├── loader.js                 # CJS loader：解析、缓存、包装、循环引用、node_modules 解析（ND-3 基础版）
 │   ├── internal/                 # L3 私有能力库，引擎私有；包不得 require
 │   │   ├── event-loop.js         # 统一 tick 入口、定时器、nextTick 队列（§16.7）
@@ -1537,7 +1582,8 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 │   │   ├── crypt-core.js         # 哈希/HMAC/AES/Ed25519 共享内核（抽自 js/crypt.js）
 │   │   ├── module-registry.js    # 内建模块名 → 实现（层 1 全部 + 引擎 8 个 skyjs/*）
 │   │   ├── native-loader.js      # 第三方 C 桥装载：package.json#skyjs.native → skynetcore.native.* → module.native（§3.4.3）
-│   │   └── path-posix.js         # 平台路径语义
+│   │   ├── path-posix.js         # 平台路径语义
+│   │   └── permission.js         # 路径边界/配额/能力授权判定（.fs/.subprocess owner 与插件宿主共用，NC2）
 │   ├── builtins/               # L4 公开面：层 1 全部内建 + 引擎 8 个 skyjs/* 内建
 │   │   ├── fs/                 # require('fs') / 'fs/promises'
 │   │   │   ├── index.js
@@ -1549,7 +1595,7 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 │   │   ├── stream/             # require('stream')
 │   │   │   ├── index.js        # Readable/Writable/Duplex/Transform/pipeline/finished
 │   │   │   └── promises.js     # require('stream/promises')
-│   │   ├── events.js  path.js  util.js  url.js  querystring.js
+│   │   ├── events.js  path.js  util.js  url.js  querystring.js  console.js
 │   │   ├── os.js               # os.tmpdir/homedir/platform… 数据源 skynetcore.runtime.info()
 │   │   ├── buffer.js           # require('buffer')：包装 internal/buffer-core.js
 │   │   ├── net.js  http.js  https.js  tls.js
@@ -1580,7 +1626,7 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 │   ├── js-crypto.c  js-tls.c   # skynetcore.crypt / skynetcore.tls
 │   ├── js-seri.c               # skynetcore.seri（pack / unpack / str）
 │   ├── js-subprocess.c         # skynetcore.subprocess
-│   ├── js-runtime.c            # skynetcore.runtime.*：exit/exitCode/argv/info/hrtime/readModuleSource
+│   ├── js-runtime.c            # skynetcore.runtime.*：exit/exitCode/argv/info/hrtime/environ/readModuleSource
 │   ├── js-native.c             # 第三方 C 桥装载：路径解析 + abi 校验 + dlsym("skyjs_ext_init")（§3.4.3）
 │   ├── snjs-internal.h         # C 源共享声明（现有文件扩展）
 │   └── skyclusterd.c           # cluster 守护进程（现有）
@@ -1606,10 +1652,10 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 
 | 文件 | 职责 | 依赖 |
 |---|---|---|
-| `js/bootstrap.js` | 运行时引导：建 loader、注册内建模块表、装配 §3 的全局对象、`require` 服务入口 | `loader.js`、`internal/*` |
+| `js/bootstrap.js` | 运行时引导：注册内建模块表、装配 §3 的全局对象、`require` 服务入口（loader 由 C 侧以非模块脚本先行装载，§3） | `internal/*` |
 | `js/loader.js` | CommonJS loader：`_resolveFilename`/`_load`/缓存/包装/循环引用；层 1 与层 2 的 `node_modules`、`@skyjs/*` 回退解析（§3.1、§16.3） | `internal/module-registry`、`internal/native-loader` |
 
-**`js/internal/`：L3 私有内核（15 个，可按实现自由拆分但不改名加层）**
+**`js/internal/`：L3 私有内核（16 个，可按实现自由拆分但不改名加层）**
 
 | 文件 | 职责 | 引擎内使用者 |
 |---|---|---|
@@ -1628,6 +1674,7 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 | `module-registry.js` | 内建模块名 → 实现；层 1 全部 + 引擎 8 个 `skyjs/*`（唯一定义处，§3） | `loader` |
 | `native-loader.js` | 第三方 C 桥装载：`package.json#skyjs.native` → `skynetcore.native.*` → `module.native`（§3.4.3） | `loader` |
 | `path-posix.js` | 平台路径语义（`path` 内核，避免 `path` 自我依赖） | `builtins/path`、`loader`、`fs-core` |
+| `permission.js` | 路径边界、配额记账、能力授权的纯逻辑判定；`.fs`/`.subprocess` owner 与插件宿主共用（NC2 随 `.fs` 落地） | `service/fs-service.js`、`service/subprocess-service.js` |
 
 **`js/builtins/`：L4 公开面（层 1 全部 + 引擎 8 个 `skyjs/*`）**
 
@@ -1636,6 +1683,7 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 | `events.js` `path.js` `util.js` `url.js` `querystring.js` | 单文件 | NC0/NC1 纯 JS 模块 |
 | `os.js` | 单文件 | `platform`/`arch`/`tmpdir`/`homedir`…；数据源 `skynetcore.runtime.info()` |
 | `buffer.js` | 单文件 | `require('buffer')`，包装 `internal/buffer-core.js` |
+| `console.js` | 单文件 | `require('console')`；`bootstrap` require 后挂 `globalThis.console`（NC0） |
 | `net.js` `http.js` `https.js` `tls.js` | 单文件 | Node facade；共享 `internal/net-core`、`http-core` |
 | `child_process.js` `crypto.js` `zlib.js` | 单文件 | 分别映射 `.subprocess` owner、`crypt-core` |
 | `fetch.js` | 单文件 | 装载件，不是模块入口；`bootstrap` require 后挂 `globalThis.fetch` |
@@ -1670,9 +1718,9 @@ skyjs/                            # 引擎仓库根（同时是 @skyjs 包的工
 | `js-net.c` | `skynetcore.net` | socket / netpack / 线程时钟 |
 | `js-crypto.c` | `skynetcore.crypt` | 哈希/AES/RSA/随机数；`TLS=openssl` 时含 OpenSSL 路径 |
 | `js-tls.c` | `skynetcore.tls` | TLS 会话原语 |
-| `js-seri.c` | `skynetcore.seri` | `pack` / `unpack` / `str`（线协议兼容，冻结） |
+| `js-seri.c` | `skynetcore.seri` | `pack` / `unpack` / `str`（与 lua-seri 线协议字节级兼容：对外契约，不随本次重构变更） |
 | `js-subprocess.c` | `skynetcore.subprocess` | `SUBPROCESS=1` 时编入；移动端不编 |
-| `js-runtime.c` | `skynetcore.runtime.*` | `exit`/`exitCode`/`argv`/`info`/`hrtime`/`readModuleSource` |
+| `js-runtime.c` | `skynetcore.runtime.*` | `exit`/`exitCode`/`argv`/`info`/`hrtime`/`environ`/`readModuleSource` |
 | `js-native.c` | `skynetcore.native.*` | 第三方 C 桥装载：路径解析 + ABI 校验 + `dlsym("skyjs_ext_init")`（§3.4.3） |
 | `snjs-internal.h` | — | C 源共享声明 |
 | `skyclusterd.c` | — | cluster 守护进程（独立二进制） |
@@ -1774,6 +1822,8 @@ packages/
 `exports`（含子路径）、`peerDependencies`（skyjs 运行时版本区间）、需要原生时的
 `skyjs.native` 平台表与 `skyjs.abi`、以及 `files` 白名单（只发 `index.js`/`lib`/
 `native/<platform>-<arch>` 或 `native/src`/`service`/`types`，不发 `test`）。
+其中 `exports` 字段仅服务 Node 侧单测与 npm 发布兼容；SkyJS loader 首版忽略它，
+解析只看 `main` 与文件系统子路径（§9.2）。
 
 **`@skyjs/webapp`（`skyjs/webapp`，纯 JS，无 owner）**
 
@@ -1844,7 +1894,7 @@ packages/
 | 实现文件 | `lib/client.js`（`probe`/`transcode`/`thumbnail`/`fingerprint`/`hls`）、`lib/probe.js`、`lib/transcode.js`、`lib/thumbnail.js`、`lib/hls.js`（切片与 playlist 管理） |
 | 依赖公开面 | 只依赖 `stream`/`fs`/`skyjs/log`（+ 自身 `module.native`） |
 | 原生 | `native/src/js-media.c`（libav 封装：libavformat/libavcodec/libavfilter/libswresample/libswscale） |
-| owner | 必需 `service/media-service.js`（`.media`）：独占 libav 上下文 + 包内 worker pool（§8.1） |
+| owner | 必需 `service/media-service.js`（`.media`）：独占 libav 上下文 + 包内 worker pool（[infra/08-media-tag.md](infra/08-media-tag.md) §8.1） |
 | 构建开关 | `MEDIA=libav`；GPL/nonfree 编解码走独立 `MEDIA_GPL=1` |
 | 明确不做 | worker pool 是包内实现，不上浮到引擎；引擎只保证包能用公开面表达"多个隔离执行体 + 结果回传" |
 
@@ -1876,7 +1926,7 @@ packages/
 
 包的构建与装机：`node_modules/@skyjs/<name>` 既可被构建脚本扫进字节码模块清单
 （使 `skyjs/<name>` 走包实现），也可只由宿主应用在 AAR/XCFramework 组装期消费其
-静态库或 C 源码（§13.2–13.3）。`features()` 对包提供的入口仍须给出与内建一致的
+静态库或 C 源码（[infra/13-build-ci.md](infra/13-build-ci.md) §13.2–13.3）。`features()` 对包提供的入口仍须给出与内建一致的
 能力键，且区分“包未安装”（`ERR_MODULE_NOT_FOUND`）与“能力未编入/未加载”
 （`ERR_UNSUPPORTED_PLATFORM`，§3.3）。
 
@@ -1930,7 +1980,8 @@ packages/
 | `skynetcore.runtime.readModuleSource(id)` | §16.3 loader 取源码/字节码 |
 | `skynetcore.runtime.argv()` | §4.4 `process.argv` 的启动参数来源 |
 | `skynetcore.runtime.info()` | §4.5 `process` 的 `platform`/`arch`/`pid`/`ppid`/`execPath`/`uptime`/版本号 |
-| `skynetcore.runtime.hrtime()` | §4.5 `process.hrtime.bigint()` 的单调纳秒时钟 |
+| `skynetcore.runtime.hrtime()` | §4.5 `process.hrtime()`/`process.hrtime.bigint()` 的单调纳秒时钟 |
+| `skynetcore.runtime.environ()` | §4.2 `process.env` 的宿主 environ 快照来源 |
 
 分组让"哪个 C 文件拥有哪些原语"一目了然，也让 facade 的依赖范围可判定。
 
@@ -1940,7 +1991,7 @@ packages/
 
 **owner service 注册名**：引擎内建为 `.fs`、`.subprocess`、`.pluginManager`；包内
 为 `.sqlite`、`.media`、`.tag`（构建期可选）、`.config`、`.metrics`（均可选）。
-点号前缀保持 skynet 惯例，是服务寻址标识，实现前冻结。
+点号前缀保持 skynet 惯例，是服务寻址标识。
 
 **RPC op 串**：现有 `"read_file"` 这类 op 串随 `js/io.js`/`js/ioservice.js` 一起退出
 冻结域。新 `.fs` owner 直接采用清晰枚举（`op: "stat" | "open" | "read" | …`），
@@ -2002,7 +2053,7 @@ facade，不新建内核。** facade 落在引擎还是 `@skyjs` 包，按 §16.
 `internal/event-loop.js` 是唯一允许直接驱动回调的地方，对外只暴露：
 
 ```js
-eventLoop.tick()                 // 排空 nextTick → 排空 microtask → 跑到期定时器
+eventLoop.tick()                 // 排空 nextTick → 排空 microtask → 跑 immediate 队列 → 跑到期定时器
 eventLoop.scheduleTimeout(fn, ms) -> handle
 eventLoop.nextTick(fn)
 eventLoop.setImmediate(fn)
@@ -2011,7 +2062,8 @@ eventLoop.setImmediate(fn)
 C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`。这样"消息
 驱动"与"定时器驱动"收敛到同一入口，nextTick 严格顺序（§5.3）只需在这一处保证。
 定时器数据由 `skynet.timeout` 提供，`eventLoop` 负责 Node 语义（毫秒、`unref`、
-`ref`、clear）。
+`ref`、clear）。注册 immediate 或首个到期定时器时经 `skynet.timeout(0)` 自唤醒
+一次，保证无外部消息时 tick 仍被驱动——NC0 出口"纯定时器程序能自行推进"的落点。
 
 ### 16.8 owner service 与二进制通道
 
@@ -2032,7 +2084,7 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
   取代 `Makefile` 里手写的 `extern snjs_bc_*` 符号列表。
 - 引擎清单只扫 `js/bootstrap.js`、`js/loader.js`、`js/internal/**`、`js/builtins/**`；
   已安装的 `node_modules/@skyjs/*` 包可选并入同一清单，使其 `skyjs/<name>` 入口走
-  包实现（§13.2）。包的原生产物按 `package.json#skyjs.native` 选平台键值参与链接。
+  包实现（[infra/13-build-ci.md](infra/13-build-ci.md) §13.2）。包的原生产物按 `package.json#skyjs.native` 选平台键值参与链接。
 - 纯 JS 模块（`events`/`path`/`util`/`querystring` 等）不依赖 C，可在 Node 下被
   同一套 `test/unit` 直接执行，不需要起 skynet。
 
@@ -2048,7 +2100,7 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
 
 | 现状文件 | 目标去向 |
 |---|---|
-| `js/skynet.js` | 拆为 `js/bootstrap.js` + `internal/event-loop.js`；`skynet` 全局保留 |
+| `js/skynet.js` | 拆为 `js/bootstrap.js` + `internal/event-loop.js` + `builtins/console.js`（console 实现自 `js/skynet.js` 迁入）；`skynet` 全局保留 |
 | `js/io.js` | 自有语义 → `builtins/skyjs/fsx.js`；改为 require 形态 |
 | `js/ioservice.js` | 删除，能力并入 `service/fs-service.js` |
 | `js/http.js` | 解析内核 → `internal/http-core.js`；服务端/客户端 → `builtins/http.js` |
@@ -2059,6 +2111,8 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
 | （新增）`webapp`/`db`/`media`/`tag`/`archive`/`config`/`metrics` | 均落 `packages/<name>/`，发布为 `@skyjs/<name>`；原生部分随包（§16.4.1、§16.4.3） |
 | `js/skyjs.d.ts` | 拆到 `js/types/*.d.ts`，按模块维护 |
 | `service-src/js-io.c` | 重构为 `js-fs.c`，补 fd/errno/权限/流式原语 |
+| `service-src/js-netpack.c` | 并入 `service-src/js-net.c`（`skynetcore.net`/`netpack` 同源维护） |
+| `service-src/js-crypto.c` / `js-tls.c` / `js-seri.c` | 保留，命名空间按 §16.5 分组挂载 |
 | `snjs.c` 的 `lazy_setup_js` | 删除，换成 loader 引导 + 模块清单 |
 | `platform/main.c` 固定 `return 0` | 改为返回退出码槽位的值（`process.exit(code)` / `process.exitCode`） |
 | `js/skynet.js` 的 `skynet.exit()` | 语义收窄为"退出当前 service"；宿主退出另给 `process.exit` |
@@ -2070,6 +2124,15 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
 （§3.1、§16.4.3）。原生部分按需求选形态——长驻/需隔离走 cservice（§3.2），只是
 同步 C 函数走 C 桥模块（§3.4）。
 
+**NC0 过渡形态。** NC0 出口要求"现有 `test/config-*.json` 全部迁移到 `require`
+入口且不回归"，但此时多数目标位置还不存在。约定：终将重构或出包的现有库
+（`http`/`socket`/`sockethelper`/`websocket`）在 NC0 先改为可 `require` 的 CJS
+内部模块，不登记进 `js/builtins/` 内建表，测试服务用相对路径引用；
+`cluster`/`gateserver`/`crypt`/`io` 直接落最终位置 `js/builtins/skyjs/`。NC4 落
+`builtins/http.js` 与 `internal/net-core` 后替换 `http`/`socket` 临时件；出包批次落
+`packages/websocket/` 后删除 `websocket` 临时件。任何时点 `js/builtins/skyjs/`
+只含 §16.4.1 的 8 个入口，过渡件不占位。
+
 ### 16.12 落地顺序
 
 落地顺序与 §13 的 NC 批次直接对应，不另起编号：
@@ -2080,7 +2143,7 @@ C 侧 `snjs.c` 的 `worker_cb` 与定时器回调统一调用 `eventLoop.tick()`
 | 2 | **事件循环**：落 `internal/event-loop.js`，接上 C 侧 tick 与定时器 | NC0 前置 |
 | 3 | **纯 JS 模块**：`events`（NC0）与 `path`/`util`/`querystring`/`url`/`os`（NC1），基本无 C 依赖，最快见效 | NC0/NC1 |
 | 4 | **二进制通道 + 错误层**：`binary-frame` + `errors`，为 `fs`/流铺路 | NC1 收尾 |
-| 5 | **`stream-core` + `.fs` owner + `fs` facade**（完整交付，`stream` facade 同批） | NC2 |
+| 5 | **`stream-core` + `.fs` owner + `permission` 权限层 + `fs` facade**（完整交付，`stream` facade 同批） | NC2 |
 | 6 | **`.subprocess` + `child_process`** | NC3 |
 | 7 | **`internal/net-core` 合并**，再落 `http-core` 与 `builtins/http.js`；同批交付 `net`/`tls`/`https`/`fetch`/`crypto`/`zlib` | NC4 |
 | 8 | **领域能力出包**：`webapp`/`websocket`/`archive`/`config`/`metrics`/`db`/`media`/`tag` 落 `packages/<name>/`，内建表只留 §16.4.1 的 8 个入口 | NC2 之后持续 |

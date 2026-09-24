@@ -32,8 +32,9 @@ npm run lint                    # JS 静态检查（提交前必跑，eslint fla
    用 `test/seri-tool` 对拍 / 与原版节点互通验证。
 3. **编码规范**：JS 标识符一律 lowerCamelCase（类 UpperCamelCase、常量 UPPER_SNAKE），
    C 注入名同规则、JS/C 同步改名；禁 `var`；协议串/env 键/算法域名词冻结不改
-   （如 io RPC op 串 `"read_file"`、`jsMemLimit` env 键、`iso7816_4`）；协议层兼容细节见
-   DEVELOPMENT.md。
+   （如 skynet 命令串、cluster 帧格式、`jsMemLimit` env 键、`iso7816_4`）；io RPC op 串
+   `"read_file"` 等已随目标架构退出冻结域，见 docs/infra/01-conventions.md §3.3；
+   协议层兼容细节见 DEVELOPMENT.md。
 4. **功能边界**：未实现清单（harbor master-slave、snlua、inject、sharetable、snax
    等）见 DEVELOPMENT.md——未实现 ≠ 永久排除，引入前先与用户确认设计，勿擅自实现。
 5. **平台基线** macOS/arm64；Linux 分支未实测（socket_server.c epoll 路径）。

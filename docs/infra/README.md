@@ -12,6 +12,7 @@ owner service 命名、接口签名、错误码与能力清单。**当前批次�
 - 编码规范、C/JS 边界、验收入口见 [../DEVELOPMENT.md](../DEVELOPMENT.md)。
 - 遗留事项与已知限制见 [../TODO.md](../TODO.md)。
 - 历史演进与问题归因见 [../HISTORY.md](../HISTORY.md)，性能基线见 [../bench.md](../bench.md)。
+- Node 兼容层的分批执行计划见 [../node-compatibility-plan.md](../node-compatibility-plan.md)。
 - 本目录只描述**新增/扩展的通用能力**；不重复既有库的实现细节。
 
 ## 阅读顺序

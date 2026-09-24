@@ -237,8 +237,7 @@ C/JS 边界：注入到 JS 的属性名同样遵守 JS camel 规范（`intComman
 - env/config 键：`jsLoader`、`jsSocket`、…、`jsMemLimit`、`__json_config`、
   `thread/cpath/bootstrap` 等——配置域契约。
 - 线协议与命令串：skynet 命令（GETENV/SIGNAL/EXIT/REG/NAME/LAUNCH/QUERY/TIMEOUT）、
-  cluster 帧（`"node "`、`"req "` 等与 `.clusterd`）、tls `"client"`/`"server"`、
-  HTTP/WS header 名。
+  cluster 帧（`"node "`、`"req "` 等与 `.clusterd`）。
 - io.js↔ioservice.js RPC op 串（`"read_file"` 等 9 个）与测试验收标记串
   （`"c_echo="`、`"js_mem="` 等）——字符串与方法名解耦，两侧字符串保持一致即可。
 - 算法/架构域名词白名单：`iso7816_4`（ISO 7816-4）、`x86_64` 等保留原名。
