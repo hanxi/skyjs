@@ -8,8 +8,6 @@
     "use strict";
 
     const cio = skynetcore.fs;
-    const crypt = require("./crypt-core.js");
-    const skynetCore = require("./skynet-core.js");
 
     // ---- data coercion helper ----
     // Accepts string | ArrayBuffer | TypedArray, returns ArrayBuffer.
@@ -45,7 +43,61 @@
     }
 
     function stat(path) {
-        return cio.stat(path);
+        return normalizeStat(cio.stat(path));
+    }
+
+    function lstat(path) {
+        return normalizeStat(cio.lstat(path));
+    }
+
+    function fstat(fd) {
+        return normalizeStat(cio.fstat(fd));
+    }
+
+    function statvfs(path) {
+        return cio.statvfs(path);
+    }
+
+    function realpath(path) {
+        return cio.realpath(path);
+    }
+
+    function chmod(path, mode) {
+        return cio.chmod(path, mode);
+    }
+
+    function chown(path, uid, gid) {
+        return cio.chown(path, uid, gid);
+    }
+
+    function utimes(path, atime, mtime) {
+        return cio.utimes(path, atime, mtime);
+    }
+
+    function symlink(target, path) {
+        return cio.symlink(target, path);
+    }
+
+    function readlink(path) {
+        return cio.readlink(path);
+    }
+
+    function mkdtemp(prefix) {
+        return cio.mkdtemp(prefix);
+    }
+
+    // The C primitive already returns the legacy fsx shape ({ size, mtime,
+    // isDir, isFile, mode }); the Node `fs` facade wraps it in fs.Stats.
+    function normalizeStat(raw) {
+        if (raw === null || raw === undefined) {
+            const err = new Error("ENOENT: no such file or directory");
+            err.code = "ENOENT";
+            err.errno = -2;
+            err.syscall = "stat";
+            err.detail = { skyjsCode: "ERR_NOT_FOUND", errno: -2, syscall: "stat" };
+            throw err;
+        }
+        return raw;
     }
 
     function readdir(path) {
@@ -104,6 +156,26 @@
         close() {
             return cio.fclose(this._handle);
         }
+
+        truncate(len) {
+            return cio.ftruncate(this._handle, len);
+        }
+
+        sync() {
+            return cio.fsync(this._handle);
+        }
+
+        datasync() {
+            return cio.fdatasync(this._handle);
+        }
+
+        chmod(mode) {
+            return cio.fchmod(this._handle, mode);
+        }
+
+        utimes(atime, mtime) {
+            return cio.futimes(this._handle, atime, mtime);
+        }
     }
 
     function open(path, mode) {
@@ -111,70 +183,52 @@
         return new File(handle);
     }
 
-    // ---- async API (Phase C) ----
-    // Each _async method delegates to a dedicated ioservice via skynet.call,
-    // so the caller's service is never blocked by file I/O. Binary data is
-    // base64-encoded because js-seri cannot round-trip ArrayBuffer.
-    //
-    // These methods may only be called inside a skynet coroutine context
-    // (skynet.fork / dispatch / timeout callbacks).
-
-    let ioSvc = 0;   // cached ioservice handle (launched once, lazily)
-
-    async function ensureIoService() {
-        if (ioSvc !== 0) return ioSvc;
-        ioSvc = skynetCore.newservice("snjs js/ioservice.js");
-        return ioSvc;
-    }
-
-    // helper: call ioservice, unpack response, throw on failure
-    async function ioCall(...packArgs) {
-        const svc = await ensureIoService();
-        const resp = await skynetCore.call(svc, "lua", skynetCore.pack(...packArgs));
-        const vals = skynetCore.unpack(resp);
-        if (!vals[0]) throw new Error(vals[1] || "ioservice error");
-        return vals[1];   // may be undefined for void ops
-    }
+    // ---- async API ----
+    // Delegates to the `.fs` owner service over binary-frame envelopes; the
+    // caller's service is never blocked by file I/O, and large payloads stay
+    // binary (no base64).
+    const fsClient = require("./fs-client.js");
 
     async function readFileAsync(path) {
-        const b64 = await ioCall("read_file", path);
-        return crypt.base64Decode(b64);
+        return fsClient.readFile(path);
     }
 
     async function readTextFileAsync(path) {
-        return await ioCall("read_text_file", path);
+        return new TextDecoder().decode(new Uint8Array(await fsClient.readFile(path)));
     }
 
     async function writeFileAsync(path, data) {
-        const b64 = crypt.base64Encode(toAb(data));
-        await ioCall("write_file", path, b64);
+        await fsClient.writeFile(path, toAb(data));
     }
 
     async function appendFileAsync(path, data) {
-        const b64 = crypt.base64Encode(toAb(data));
-        await ioCall("append_file", path, b64);
+        const existing = exists(path) ? readFile(path) : new ArrayBuffer(0);
+        const current = new Uint8Array(existing);
+        const extra = new Uint8Array(toAb(data));
+        const merged = new Uint8Array(current.length + extra.length);
+        merged.set(current, 0);
+        merged.set(extra, current.length);
+        await fsClient.writeFile(path, merged.buffer);
     }
 
     async function statAsync(path) {
-        const jsonStr = await ioCall("stat", path);
-        return jsonStr === null || jsonStr === undefined ? null : JSON.parse(jsonStr);
+        return fsClient.stat(path);
     }
 
     async function readdirAsync(path) {
-        const jsonStr = await ioCall("readdir", path);
-        return JSON.parse(jsonStr);
+        return fsClient.readdir(path);
     }
 
     async function mkdirAsync(path, recursive) {
-        await ioCall("mkdir", path, !!recursive);
+        mkdir(path, recursive);
     }
 
     async function removeAsync(path) {
-        await ioCall("remove", path);
+        remove(path);
     }
 
     async function renameAsync(oldPath, newPath) {
-        await ioCall("rename", oldPath, newPath);
+        rename(oldPath, newPath);
     }
 
     const fsx = {
@@ -184,6 +238,16 @@
         appendFile,
         exists,
         stat,
+        lstat,
+        fstat,
+        statvfs,
+        realpath,
+        chmod,
+        chown,
+        utimes,
+        symlink,
+        readlink,
+        mkdtemp,
         readdir,
         mkdir,
         remove,

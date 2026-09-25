@@ -60,8 +60,8 @@ void register_crypto_bridge(JSContext *ctx, JSValue global);
 void register_tls_bridge(JSContext *ctx, JSValue global);
 #endif
 
-// js-io.c exports (fs namespace, see register_io_bridge)
-void register_io_bridge(JSContext *ctx, JSValue global);
+// js-fs.c exports (fs namespace, see register_fs_bridge)
+void register_fs_bridge(JSContext *ctx, JSValue global);
 
 // js-seri.c exports (seri namespace, see register_seri_bridge)
 void register_seri_bridge(JSContext *ctx, JSValue obj);

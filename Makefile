@@ -141,7 +141,7 @@ BUILTIN_OBJ :=
 STATIC_LDFLAGS :=
 ifeq ($(STATIC),1)
   BUILTIN_OBJ := build/snjs.o build/seri.o build/net.o build/crypto.o \
-    build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o build/svc_logger.o \
+    build/fs.o build/runtime.o $(TLS_OBJ) build/rt_bc.o build/svc_logger.o \
     build/svc_skyclusterd.o build/builtin-dl.o
   ifeq ($(PLAT),macosx)
     STATIC_LDFLAGS := -Wl,-export_dynamic
@@ -205,7 +205,7 @@ build/crypto.o: service-src/js-crypto.c service-src/snjs-internal.h | build
 build/tls.o: service-src/js-tls.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
-build/io.o: service-src/js-io.c service-src/snjs-internal.h | build
+build/fs.o: service-src/js-fs.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
 build/runtime.o: service-src/js-runtime.c service-src/snjs-internal.h | build
@@ -241,10 +241,10 @@ endif
 
 # embedded bytecode of js/internal/skynet-core.js + js/internal/net-core.js + js/internal/crypt-core.js +
 # js/internal/net-helper-core.js + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/internal/http-core.js +
-# js/internal/websocket-core.js + js/internal/fs-core.js + js/ioservice.js: snjs loads these instead of
+# js/internal/websocket-core.js + js/internal/fs-core.js + service/fs-service.js: snjs loads these instead of
 # parsing the sources per service. Regenerated whenever the sources or the
 # quickjs submodule move; never committed.
-build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/internal/crypt-core.js js/internal/net-helper-core.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/internal/websocket-core.js js/internal/fs-core.js js/ioservice.js | build
+build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/internal/crypt-core.js js/internal/net-helper-core.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/internal/websocket-core.js js/internal/fs-core.js service/fs-service.js | build
 	./build/qjsc -s -N snjs_bc_skynet -o build/bc_skynet.c js/internal/skynet-core.js
 	./build/qjsc -s -N snjs_bc_socket -o build/bc_socket.c js/internal/net-core.js
 	./build/qjsc -s -N snjs_bc_crypt -o build/bc_crypt.c js/internal/crypt-core.js
@@ -254,14 +254,14 @@ build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/
 	./build/qjsc -s -N snjs_bc_http -o build/bc_http.c js/internal/http-core.js
 	./build/qjsc -s -N snjs_bc_websocket -o build/bc_websocket.c js/internal/websocket-core.js
 	./build/qjsc -s -N snjs_bc_io -o build/bc_io.c js/internal/fs-core.js
-	./build/qjsc -s -N snjs_bc_ioservice -o build/bc_ioservice.c js/ioservice.js
+	./build/qjsc -s -N snjs_bc_ioservice -o build/bc_ioservice.c service/fs-service.js
 	cat build/bc_skynet.c build/bc_socket.c build/bc_crypt.c build/bc_sockethelper.c build/bc_cluster.c build/bc_gateserver.c build/bc_http.c build/bc_websocket.c build/bc_io.c build/bc_ioservice.c > $@
 
 build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
 cservice/snjs.so: build/snjs.o build/seri.o build/net.o build/crypto.o \
-	build/io.o build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
+	build/fs.o build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
 	$(CC) $(CFLAGS) $(SHARED) -fvisibility=hidden -o $@ $^ $(OPENSSL_LDFLAGS) -lm
 
 # reference tool: original lua-seri.c linked with the stock Lua 5.5.1 shipped

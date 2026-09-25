@@ -1,0 +1,7 @@
+{
+  "thread": 1,
+  "cpath": "./cservice/?.so;./test/cservice/?.so",
+  "bootstrap": "snjs test/service/fs-main.js",
+  "logservice": "logger",
+  "profile": true
+}

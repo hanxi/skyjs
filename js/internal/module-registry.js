@@ -17,6 +17,11 @@ function resolve(request) {
             request : request.slice(3);
         return { id, kind: "internal", fallback: null };
     }
+    if (request === "fs" || request.startsWith("fs/")) {
+        // fs -> builtins/fs/index.js, fs/promises -> builtins/fs/promises.js
+        const sub = request === "fs" ? "index" : request.slice(3);
+        return { id: "builtins/fs/" + sub, kind: "builtin", fallback: null };
+    }
     if (request === "stream" || request.startsWith("stream/")) {
         // stream/promises lives next to the main facade.
         return {

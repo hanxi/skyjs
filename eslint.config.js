@@ -48,7 +48,8 @@ const retiredNames = [
 
 // Web-standard constructor names stay verbatim (URL, URLSearchParams, ...).
 const webApiNames = ["URL", "URLSearchParams", "TextEncoder", "TextDecoder",
-    "AbortController", "AbortSignal", "Blob", "File", "EventEmitter"];
+    "AbortController", "AbortSignal", "Blob", "File", "EventEmitter",
+    "Stats", "Dirent", "FSWatcher", "StatWatcher", "FileHandle"];
 const webApiPattern = "^(?:" + webApiNames.join("|") + ")$";
 const naming = [
     // Web/Node standard names are external contract (docs/infra/01 §1.1);

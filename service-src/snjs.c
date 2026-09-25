@@ -542,7 +542,7 @@ register_bridge(struct snjs *l) {
 #ifdef USE_OPENSSL
 	register_tls_bridge(l->jsc, g);
 #endif
-	register_io_bridge(l->jsc, g);
+	register_fs_bridge(l->jsc, g);
 	register_runtime_module_bridge(l);
 	JS_FreeValue(l->jsc, g);
 }

@@ -303,3 +303,18 @@
     `Duplex`/`Transform`/`PassThrough`/`pipeline`/`finished` + `stream/promises`）。
     模块表新增 `stream`/`stream/promises` 内建解析。新增 stream 场景与
     test/unit/stream 用例覆盖 pipeline 顺序、背压、错误传播、取消与 async iterator。
+35. **Node 兼容层 NC2.2–NC2.5：permission / .fs owner / js-fs.c / 完整 fs**
+    （2026-09-25）：`service-src/js-io.c` 重构为 `service-src/js-fs.c`
+    （`register_fs_bridge`），错误改为结构化 Node 字段
+    （`err.code`/`errno`/`syscall`/`path` + `err.detail.skyjsCode`），新增
+    `lstat`/`fstat`/`realpath`/`chmod`/`chown`/`utimes`/`symlink`/`readlink`/
+    `mkdtemp`/`statvfs`/`ftruncate`/`fsync`/`fdatasync`/`futimes`/`fchmod`。
+    新增 `js/internal/permission.js`（路径边界/配额/只读/能力判定）与首个
+    `service/fs-service.js`（`.fs` owner，RPC 走 `internal/binary-frame`，删除
+    `js/ioservice.js` 与 base64 通道；`js/internal/fs-client.js` 为客户端）。
+    `js/builtins/fs/` 交付完整 facade：`index.js`（callback）/`promises.js`/
+    `stats.js`/`constants.js`/`streams.js`/`watcher.js`（watch 显式报
+    `ERR_UNSUPPORTED_PLATFORM`），`js/internal/fs-sync.js` 为三形态共用内核，
+    `skyjs/fsx` 与 `fs` 同源。新增 fs / fs_owner / fs_exit 场景（三种形态、扩展
+    原语、流式、权限三类拒绝、16 MiB pipe 堆增量 < 64 MiB、owner 句柄风暴）与
+    `test/node-compat/fs-errors`（errno/errno/syscall 对拍一致）。
