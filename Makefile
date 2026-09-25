@@ -193,6 +193,7 @@ build/qjs_%.o: 3rd/quickjs/%.c | build
 # SUBPROCESS=1 (desktop default) compiles the child-process primitives; mobile
 # builds set SUBPROCESS=0 so require('child_process') reports unavailable.
 SUBPROCESS ?= 1
+NATIVE_EXT ?= 1
 ifeq ($(SUBPROCESS),1)
   SUBPROCESS_DEFINE := -DUSE_SUBPROCESS
   SUBPROCESS_OBJ := build/subprocess.o
@@ -201,11 +202,25 @@ else
   SUBPROCESS_OBJ :=
 endif
 
+ifeq ($(NATIVE_EXT),1)
+  NATIVE_DEFINE := -DUSE_NATIVE_EXT
+  NATIVE_OBJ := build/native.o build/native-registry.o
+else
+  NATIVE_DEFINE :=
+  NATIVE_OBJ :=
+endif
+
 build/snjs.o: service-src/snjs.c service-src/snjs-internal.h | build
-	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) $(SUBPROCESS_DEFINE) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@ -DSKYJS_VERSION=\"$(VERSION)\"
+	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) $(SUBPROCESS_DEFINE) $(NATIVE_DEFINE) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -Iinclude -I3rd/quickjs -c $< -o $@ -DSKYJS_VERSION=\"$(VERSION)\"
 
 build/subprocess.o: service-src/js-subprocess.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
+
+build/native.o: service-src/js-native.c service-src/snjs-internal.h service-src/skyjs-native-registry.h include/skyjs-ext.h | build
+	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -Iinclude -c $< -o $@
+
+build/native-registry.o: service-src/native-registry-empty.c service-src/skyjs-native-registry.h include/skyjs-ext.h | build
+	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -Iinclude -c $< -o $@
 
 build/seri.o: service-src/js-seri.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
@@ -275,7 +290,7 @@ build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
 cservice/snjs.so: build/snjs.o build/seri.o build/net.o build/crypto.o \
-	build/fs.o $(SUBPROCESS_OBJ) build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
+	build/fs.o $(SUBPROCESS_OBJ) $(NATIVE_OBJ) build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
 	$(CC) $(CFLAGS) $(SHARED) -fvisibility=hidden -o $@ $^ $(OPENSSL_LDFLAGS) -lm
 
 # reference tool: original lua-seri.c linked with the stock Lua 5.5.1 shipped
@@ -322,7 +337,12 @@ clean:
 # acceptance suite: builds everything first, then drives all scenarios
 # (see tools/run-tests.js header for the pass/fail model); seri_tool is a
 # separate target because `all` does not build it
-test: all test/seri-tool
+NATIVE_FIXTURE := test/native-ext/example-native/libexample-native.dylib
+
+$(NATIVE_FIXTURE): test/native-ext/example-native/example-native.c include/skyjs-ext.h
+	$(CC) -shared -fPIC -Iinclude -I3rd/quickjs -Wl,-undefined,dynamic_lookup -o $@ $<
+
+test: all test/seri-tool $(NATIVE_FIXTURE)
 	node tools/gen-module-manifest.js --check
 	node tools/run-tests.js
 

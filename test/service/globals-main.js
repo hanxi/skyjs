@@ -63,7 +63,8 @@ for (const name of requiredNamespaces) {
         throw new Error("missing skynetcore namespace: " + name);
     }
 }
-const allowed = requiredNamespaces.concat(["tls", "subprocess"]);
+// `tls` is OpenSSL-only, `subprocess`/`native` depend on their build switches.
+const allowed = requiredNamespaces.concat(["tls", "subprocess", "native"]);
 for (const name of namespaces) {
     if (!allowed.includes(name)) {
         throw new Error("unexpected skynetcore namespace: " + name);

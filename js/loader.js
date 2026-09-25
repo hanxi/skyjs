@@ -51,6 +51,10 @@
         return normalized === "/" ? "/" : normalized.replace(/\/+$/, "");
     }
 
+    // Package roots discovered during resolution: filename -> { root, manifest }.
+    // Used by _load to attach module.native for packages declaring skyjs.native.
+    const packageInfo = new Map();
+
     function tryDirectory(directory) {
         const root = moduleRealpath(directoryPath(directory));
         if (root === null) return null;
@@ -61,11 +65,18 @@
             if (typeof metadata.main === "string" && metadata.main !== "") {
                 const main = pathPosix.join(root, metadata.main);
                 const found = tryExtensions(main) || tryDirectory(main);
-                if (found !== null) return found;
+                if (found !== null) {
+                    if (metadata.skyjs !== undefined) {
+                        packageInfo.set(found.filename,
+                            { root, manifest: metadata });
+                    }
+                    return found;
+                }
             }
         }
-        return tryExtensions(pathPosix.join(root, "index.js")) ||
+        const index = tryExtensions(pathPosix.join(root, "index.js")) ||
             tryExtensions(pathPosix.join(root, "index.json"));
+        return index;
     }
 
     function tryPathOrDirectory(filename) {
@@ -183,6 +194,20 @@
             } else {
                 const source = readSource(filename);
                 if (source === null) throw notFound(request);
+                const packageMeta = packageInfo.get(filename);
+                if (packageMeta !== undefined &&
+                        packageMeta.manifest.skyjs !== undefined &&
+                        packageMeta.manifest.skyjs.native !== undefined) {
+                    // §3.4.3: static first, dynamic second; may throw
+                    // ERR_UNSUPPORTED_PLATFORM when the capability is absent.
+                    const nativeLoader = Module._load("internal/native-loader.js",
+                        undefined, false);
+                    const pkgName = packageMeta.manifest.name || filename;
+                    const namespace = {};
+                    const loaded = nativeLoader.load(pkgName, packageMeta.root,
+                        packageMeta.manifest, namespace);
+                    module.native = loaded === null ? undefined : loaded.exports;
+                }
                 const wrapper = (0, eval)(Module.wrap(source));
                 wrapper.call(module.exports, module.exports,
                     module.require.bind(module), module, filename,

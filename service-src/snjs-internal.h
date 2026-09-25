@@ -60,6 +60,12 @@ void register_crypto_bridge(JSContext *ctx, JSValue global);
 void register_tls_bridge(JSContext *ctx, JSValue global);
 #endif
 
+#ifdef USE_NATIVE_EXT
+// js-native.c exports (native bridge, see register_native_bridge)
+void register_native_bridge(JSContext *ctx, JSValue obj);
+void js_native_release_all(void);
+#endif
+
 // js-subprocess.c exports (subprocess namespace, see register_subprocess_bridge)
 void register_subprocess_bridge(JSContext *ctx, JSValue obj);
 

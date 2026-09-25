@@ -1,0 +1,7 @@
+{
+  "thread": 1,
+  "cpath": "./cservice/?.so;./test/cservice/?.so",
+  "extpath": "./test/native-ext",
+  "bootstrap": "snjs test/service/native-off-main.js",
+  "logservice": "logger"
+}

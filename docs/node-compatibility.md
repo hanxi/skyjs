@@ -430,9 +430,11 @@ C 桥与调用方处于同一地址空间、同一个 Actor 内，因此**不能
   某个 JS 对象的 finalizer 上，或由 owner service 持有；C 桥形态下没有 owner
   service 兜底，实现方自己负责"service 释放时把句柄收干净"。
 
-> 待验证项（NC5）：确认扩展 `.so` 在 `RTLD_LOCAL` 下能稳定解析到主程序导出的
-> QuickJS 符号（Linux 靠 `-rdynamic`，macOS 实测主程序已导出 253 个 `JS_*`
-> 符号，MinGW 靠 `--export-all-symbols` 与 import library），并把结论写回本节。
+> NC5 验证结论：示例扩展在 macOS 上以 `-shared -Wl,-undefined,dynamic_lookup`
+> 构建（不链接 QuickJS），运行时经 `dlopen(RTLD_NOW|RTLD_LOCAL)` 成功解析到主程序
+> 导出的 `JS_*` 符号并完成 ABI 校验 + `skyjs_ext_init` 调用（见 native_ext 场景）。
+> Linux 对应做法是主程序 `-rdynamic`，MinGW 是 `--export-all-symbols` 与 import
+> library；三者都由既有构建选项覆盖。
 
 与 cservice 的关系：两者可以共存，选型规则是"**需要 Actor 隔离与配额 → cservice；
 只需要一个同步函数调用 → C 桥模块**"。`media`/`tag` 这类重任务仍走 `.media`

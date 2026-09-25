@@ -16,3 +16,8 @@ node_modules/
 examples/ts-echo/ts-echo.js
 
 .vscode
+
+# native bridge test fixture: compiled from example-native.c at build time
+test/native-ext/**/lib*.dylib
+test/native-ext/**/lib*.so
+test/native-ext/**/*.dll

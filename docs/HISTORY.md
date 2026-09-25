@@ -338,3 +338,15 @@
     新增 net / http_node / crypto_node 场景。注：把 `net-helper-core.js` 物理并入
     `net-core.js` 的方案在 socket 生命周期上引入了 double-close 回归，已回退为保留
     两个 internal 文件，真正的物理合并留作后续（见 docs/TODO.md）。
+38. **Node 兼容层 NC5：第三方 C 桥装载**（2026-09-25）：新增
+    `include/skyjs-ext.h`（`SKYJS_EXT_ABI_VERSION` + 两个固定入口声明）、
+    `service-src/js-native.c`（`skynetcore.native.*`：enabled/dynamicEnabled/
+    staticEnabled/resolve/find/load/abi/init/initStatic/unload/errmsg；只按写死的
+    `skyjs_ext_abi`/`skyjs_ext_init` 取符号，句柄进程级共享 + 每服务引用计数）、
+    `service-src/skyjs-native-registry.h` 与空表实现（纯静态构建由
+    `tools/gen-native-registry.js` 生成带包名改写符号的表）。`NATIVE_EXT=1`
+    （默认）编入，关闭时 `features().nativeExt.available=false`。
+    `js/internal/native-loader.js` 实现静态优先/动态兜底选路、平台键解析、越界
+    与 ABI 校验，`js/loader.js` 对声明 `skyjs.native` 的包注入 `module.native`。
+    新增 `@skyjs/example-native` 示例扩展（crc32）与 native_ext / native_switch
+    场景（动态装载、ABI 校验、resolve 越界拒绝、开关两态）。

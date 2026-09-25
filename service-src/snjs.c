@@ -36,6 +36,7 @@
 #include "skynet_socket.h"
 #include "atomic.h"
 #include "snjs-internal.h"
+#include "skyjs-native-registry.h"
 
 #include <quickjs.h>
 
@@ -487,11 +488,23 @@ js_features(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
 #endif
 	JSValue native_ext = JS_NewObject(ctx);
+#ifdef USE_NATIVE_EXT
+	{
+		struct snjs *l = getinst(ctx);
+		const char *extpath = skynet_command(l->ctx, "GETENV", "extpath");
+		int has_extpath = extpath != NULL && extpath[0] != '\0';
+		JS_SetPropertyStr(ctx, native_ext, "available", JS_NewBool(ctx, 1));
+		JS_SetPropertyStr(ctx, native_ext, "dynamic", JS_NewBool(ctx, has_extpath));
+		JS_SetPropertyStr(ctx, native_ext, "static",
+			JS_NewBool(ctx, skyjs_native_static_count() > 0));
+	}
+#else
 	JS_SetPropertyStr(ctx, native_ext, "available", JS_NewBool(ctx, 0));
 	JS_SetPropertyStr(ctx, native_ext, "reason",
 		JS_NewString(ctx, "ERR_UNSUPPORTED_PLATFORM"));
 	JS_SetPropertyStr(ctx, native_ext, "dynamic", JS_NewBool(ctx, 0));
 	JS_SetPropertyStr(ctx, native_ext, "static", JS_NewBool(ctx, 0));
+#endif
 	JS_SetPropertyStr(ctx, features, "nativeExt", native_ext);
 	JS_SetPropertyStr(ctx, features, "pluginSandbox",
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
@@ -533,6 +546,9 @@ register_bridge(struct snjs *l) {
 	register_net_bridge(l->jsc, obj);
 #ifdef USE_SUBPROCESS
 	register_subprocess_bridge(l->jsc, obj);
+#endif
+#ifdef USE_NATIVE_EXT
+	register_native_bridge(l->jsc, obj);
 #endif
 	{
 		JSValue g = JS_GetGlobalObject(l->jsc);
@@ -859,6 +875,9 @@ snjs_create(void) {
 
 MODAPI void
 snjs_release(struct snjs *l) {
+#ifdef USE_NATIVE_EXT
+	js_native_release_all();
+#endif
 	js_netpack_free(l);
 	skynet_free(l->runtime_args);
 	JS_FreeValue(l->jsc, l->dispatch);
