@@ -3,7 +3,7 @@
 // WS FAIL markers.
 "use strict";
 
-const sockethelper = require("../../js/internal/net-helper-core.js");
+const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
 const crypt = require("../../js/internal/crypt-core.js");
 const websocket = require("../../js/internal/websocket-core.js");
@@ -176,7 +176,7 @@ skynet.timeout(1, async () => {
         {
             let rejOk = false;
             try {
-                const fd = await sockethelper.connect("127.0.0.1", parseInt(port, 10));
+                const fd = await sockethelper.connectAsync("127.0.0.1", parseInt(port, 10));
                 const reader = sockethelper.reader(fd);
                 reader.write("GARBAGE REQUEST\r\n\r\n");
                 try {

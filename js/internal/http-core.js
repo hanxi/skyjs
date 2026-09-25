@@ -12,7 +12,7 @@
     const LIMIT = 8192;
     const textCodec = require("./text-codec.js");
     const netCore = require("./net-core.js");
-    const netHelper = require("./net-helper-core.js");
+    const netHelper = require("./net-core.js");
     const textDecoder = new textCodec.TextDecoder("utf-8");
     const textEncoder = new textCodec.TextEncoder();
 
@@ -674,7 +674,7 @@
      * Open a new connection (with optional TLS upgrade).
      */
     async function openConnection(parsed, timeout, caFile) {
-        const fd = await netHelper.connect(
+        const fd = await netHelper.connectAsync(
             parsed.host, parsed.port, timeout
         );
         const reader = netHelper.reader(fd);

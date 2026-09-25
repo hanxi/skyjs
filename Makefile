@@ -269,14 +269,13 @@ build/qjsc: 3rd/quickjs/qjsc.c 3rd/quickjs/quickjs-libc.c $(QJS_OBJ) | build
 endif
 
 # embedded bytecode of js/internal/skynet-core.js + js/internal/net-core.js + js/internal/crypt-core.js +
-# js/internal/net-helper-core.js + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/internal/http-core.js +
+# + skyjs/cluster.js + js/builtins/skyjs/gateserver.js + js/internal/http-core.js +
 # js/internal/websocket-core.js + js/internal/fs-core.js + service/fs-service.js: snjs loads these instead of
 # parsing the sources per service. Regenerated whenever the sources or the
 # quickjs submodule move; never committed.
-build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/internal/net-helper-core.js js/internal/crypt-core.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/internal/websocket-core.js js/internal/fs-core.js service/fs-service.js | build
+build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/internal/crypt-core.js js/builtins/skyjs/cluster.js js/builtins/skyjs/gateserver.js js/internal/http-core.js js/internal/websocket-core.js js/internal/fs-core.js service/fs-service.js | build
 	./build/qjsc -s -N snjs_bc_skynet -o build/bc_skynet.c js/internal/skynet-core.js
 	./build/qjsc -s -N snjs_bc_socket -o build/bc_socket.c js/internal/net-core.js
-	./build/qjsc -s -N snjs_bc_sockethelper -o build/bc_sockethelper.c js/internal/net-helper-core.js
 	./build/qjsc -s -N snjs_bc_crypt -o build/bc_crypt.c js/internal/crypt-core.js
 	./build/qjsc -s -N snjs_bc_cluster -o build/bc_cluster.c js/builtins/skyjs/cluster.js
 	./build/qjsc -s -N snjs_bc_gateserver -o build/bc_gateserver.c js/builtins/skyjs/gateserver.js
@@ -284,7 +283,7 @@ build/rt_bc.c: build/qjsc js/internal/skynet-core.js js/internal/net-core.js js/
 	./build/qjsc -s -N snjs_bc_websocket -o build/bc_websocket.c js/internal/websocket-core.js
 	./build/qjsc -s -N snjs_bc_io -o build/bc_io.c js/internal/fs-core.js
 	./build/qjsc -s -N snjs_bc_ioservice -o build/bc_ioservice.c service/fs-service.js
-	cat build/bc_skynet.c build/bc_socket.c build/bc_crypt.c build/bc_sockethelper.c build/bc_cluster.c build/bc_gateserver.c build/bc_http.c build/bc_websocket.c build/bc_io.c build/bc_ioservice.c > $@
+	cat build/bc_skynet.c build/bc_socket.c build/bc_crypt.c build/bc_cluster.c build/bc_gateserver.c build/bc_http.c build/bc_websocket.c build/bc_io.c build/bc_ioservice.c > $@
 
 build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@

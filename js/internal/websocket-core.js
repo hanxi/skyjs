@@ -18,7 +18,7 @@
     const textCodec = require("./text-codec.js");
     const crypt = require("./crypt-core.js");
     const netCore = require("./net-core.js");
-    const netHelper = require("./net-helper-core.js");
+    const netHelper = require("./net-core.js");
     const httpCore = require("./http-core.js");
     const textEncoder = new textCodec.TextEncoder();
     const textDecoder = new textCodec.TextDecoder("utf-8");
@@ -601,7 +601,7 @@
     wsApi.connect = async function (url, header, timeout, options) {
         const parsed = parseWsUrl(url);
 
-        const fd = await netHelper.connect(
+        const fd = await netHelper.connectAsync(
             parsed.hostAddr, parsed.hostPort, timeout
         );
         const reader = netHelper.reader(fd);

@@ -3,7 +3,7 @@
 // keep-alive, chunked responses, forced close, and stale-connection testing.
 "use strict";
 
-const sockethelper = require("../../js/internal/net-helper-core.js");
+const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
 const httpd = require("../../js/internal/http-core.js").httpd;
 

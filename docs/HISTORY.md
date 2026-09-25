@@ -350,3 +350,12 @@
     与 ABI 校验，`js/loader.js` 对声明 `skyjs.native` 的包注入 `module.native`。
     新增 `@skyjs/example-native` 示例扩展（crc32）与 native_ext / native_switch
     场景（动态装载、ABI 校验、resolve 越界拒绝、开关两态）。
+39. **Node 兼容层 NC4.1 补完：net-helper 物理并入 net-core**（2026-09-25）：
+    `js/internal/net-helper-core.js` 并入 `js/internal/net-core.js`，删除该文件与其
+    字节码块；`connect` 保持原始回调 API，promise 版helper 改名 `connectAsync`
+    （此前两者同名导致 helper 自递归）。失败的根因是我第一次合并时把
+    `test/service/ws-main.js` 的 `sockethelper` 也指到了 `net-core.js`，使其
+    `await sockethelper.connect(...)` 变成"回调版 connect 返回的 fd"被 await，
+    随后 `socket.close` 二次释放触发 `socket_server.c dec_sending_ref` 断言；
+    已修正为 `connectAsync`。`http-core`/`websocket-core`/示例/测试的引用与
+    Makefile 接线同步收敛，socket/gate/http/ws/tls/cluster 全量回归通过。

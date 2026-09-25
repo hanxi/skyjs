@@ -41,7 +41,6 @@ eventLoop.install();
 // longer publish legacy globals (NC0.8); services require() the module they use.
 require("./internal/skynet-core.js");
 require("./internal/net-core.js");
-require("./internal/net-helper-core.js");
 require("./internal/crypt-core.js");
 require("./internal/http-core.js");
 require("./internal/websocket-core.js");

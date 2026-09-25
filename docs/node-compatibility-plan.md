@@ -69,7 +69,7 @@
 | NC3.1 | `js-subprocess.c` C 原语 | NC0.8 | 已完成 |
 | NC3.2 | `.subprocess` owner + `internal/subprocess-core` | NC3.1、NC2.2 | 已完成 |
 | NC3.3 | `child_process` facade + 移动端开关 | NC3.2 | 已完成 |
-| NC4.1 | `internal/net-core` 合并（删 socket 过渡件） | NC0.8、NC2.1 | 部分完成 |
+| NC4.1 | `internal/net-core` 合并（删 socket 过渡件） | NC0.8、NC2.1 | 已完成 |
 | NC4.2 | `require('net')` + `require('tls')` | NC4.1 | 已完成 |
 | NC4.3 | `internal/http-core` + `http`/`https` + `fetch` | NC4.2 | 已完成 |
 | NC4.4 | `internal/crypt-core` + `crypto`/`zlib` | NC0.8 | 已完成 |

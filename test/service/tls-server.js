@@ -3,7 +3,7 @@
 // with TLS). Responds to "text" protocol for port discovery and conn_count.
 "use strict";
 
-const sockethelper = require("../../js/internal/net-helper-core.js");
+const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
 const websocket = require("../../js/internal/websocket-core.js");
 const httpCore = require("../../js/internal/http-core.js");
