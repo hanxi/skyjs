@@ -66,9 +66,9 @@
 | NC2.3 | `js-io.c` → `js-fs.c` 重构 + 原语扩展 | NC2.2 | 已完成 |
 | NC2.4 | 完整 `fs` facade + `skyjs/fsx` | NC2.1–NC2.3 | 已完成 |
 | NC2.5 | fs 出口专项验收（对拍/内存/fd） | NC2.4 | 已完成 |
-| NC3.1 | `js-subprocess.c` C 原语 | NC0.8 | 未开始 |
-| NC3.2 | `.subprocess` owner + `internal/subprocess-core` | NC3.1、NC2.2 | 未开始 |
-| NC3.3 | `child_process` facade + 移动端开关 | NC3.2 | 未开始 |
+| NC3.1 | `js-subprocess.c` C 原语 | NC0.8 | 已完成 |
+| NC3.2 | `.subprocess` owner + `internal/subprocess-core` | NC3.1、NC2.2 | 已完成 |
+| NC3.3 | `child_process` facade + 移动端开关 | NC3.2 | 已完成 |
 | NC4.1 | `internal/net-core` 合并（删 socket 过渡件） | NC0.8、NC2.1 | 未开始 |
 | NC4.2 | `require('net')` + `require('tls')` | NC4.1 | 未开始 |
 | NC4.3 | `internal/http-core` + `http`/`https` + `fetch` | NC4.2 | 未开始 |

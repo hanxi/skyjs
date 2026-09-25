@@ -190,8 +190,22 @@ build/%.o: platform/%.c | build
 build/qjs_%.o: 3rd/quickjs/%.c | build
 	$(CC) $(CFLAGS) -fPIC -D_GNU_SOURCE -I3rd/quickjs -c $< -o $@
 
+# SUBPROCESS=1 (desktop default) compiles the child-process primitives; mobile
+# builds set SUBPROCESS=0 so require('child_process') reports unavailable.
+SUBPROCESS ?= 1
+ifeq ($(SUBPROCESS),1)
+  SUBPROCESS_DEFINE := -DUSE_SUBPROCESS
+  SUBPROCESS_OBJ := build/subprocess.o
+else
+  SUBPROCESS_DEFINE :=
+  SUBPROCESS_OBJ :=
+endif
+
 build/snjs.o: service-src/snjs.c service-src/snjs-internal.h | build
-	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@ -DSKYJS_VERSION=\"$(VERSION)\"
+	$(CC) $(CFLAGS) -fPIC $(OPENSSL_CFLAGS) $(SUBPROCESS_DEFINE) -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@ -DSKYJS_VERSION=\"$(VERSION)\"
+
+build/subprocess.o: service-src/js-subprocess.c service-src/snjs-internal.h | build
+	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
 
 build/seri.o: service-src/js-seri.c service-src/snjs-internal.h | build
 	$(CC) $(CFLAGS) -fPIC -fvisibility=hidden -I$(SKYNET_INC) -Iplatform -I3rd/quickjs -c $< -o $@
@@ -261,7 +275,7 @@ build/rt_bc.o: build/rt_bc.c | build
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
 cservice/snjs.so: build/snjs.o build/seri.o build/net.o build/crypto.o \
-	build/fs.o build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
+	build/fs.o $(SUBPROCESS_OBJ) build/runtime.o $(TLS_OBJ) build/rt_bc.o $(IMPORT_LIB) | cservice
 	$(CC) $(CFLAGS) $(SHARED) -fvisibility=hidden -o $@ $^ $(OPENSSL_LDFLAGS) -lm
 
 # reference tool: original lua-seri.c linked with the stock Lua 5.5.1 shipped

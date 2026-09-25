@@ -60,6 +60,9 @@ void register_crypto_bridge(JSContext *ctx, JSValue global);
 void register_tls_bridge(JSContext *ctx, JSValue global);
 #endif
 
+// js-subprocess.c exports (subprocess namespace, see register_subprocess_bridge)
+void register_subprocess_bridge(JSContext *ctx, JSValue obj);
+
 // js-fs.c exports (fs namespace, see register_fs_bridge)
 void register_fs_bridge(JSContext *ctx, JSValue global);
 

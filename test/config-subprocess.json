@@ -1,0 +1,7 @@
+{
+  "thread": 2,
+  "cpath": "./cservice/?.so;./test/cservice/?.so",
+  "bootstrap": "snjs test/service/subprocess-main.js",
+  "logservice": "logger",
+  "profile": true
+}

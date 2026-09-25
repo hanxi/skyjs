@@ -35,8 +35,9 @@ check(features.fsAsync.available === false, "fsAsync unavailable");
 check(features.fsAsync.reason === "ERR_UNSUPPORTED_PLATFORM", "fsAsync reason");
 check(features.httpStream.available === false, "httpStream unavailable");
 check(features.httpStream.reason === "ERR_UNSUPPORTED_PLATFORM", "httpStream reason");
-check(features.subprocess.available === false, "subprocess unavailable");
-check(features.subprocess.reason === "ERR_UNSUPPORTED_PLATFORM", "subprocess reason");
+// SUBPROCESS=1 is the desktop default; the build switch is asserted by the
+// subprocess scenario instead of hard-coding availability here.
+check(typeof features.subprocess.available === "boolean", "subprocess reported");
 
 if (failures.length !== 0) {
     throw new Error("SKYNETCORE_GROUPS_FAIL: " + failures.join("; "));

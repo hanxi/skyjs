@@ -318,3 +318,13 @@
     `skyjs/fsx` 与 `fs` 同源。新增 fs / fs_owner / fs_exit 场景（三种形态、扩展
     原语、流式、权限三类拒绝、16 MiB pipe 堆增量 < 64 MiB、owner 句柄风暴）与
     `test/node-compat/fs-errors`（errno/errno/syscall 对拍一致）。
+36. **Node 兼容层 NC3：子进程**（2026-09-25）：新增 `service-src/js-subprocess.c`
+    （`skynetcore.subprocess`：posix_spawn + 三路 pipe、非阻塞 `read`（`"again"`/
+    `"eof"`）、`write`/`close`/`kill`/`wait`/`release`/`reapAll`，per-service 进程表），
+    由 `SUBPROCESS=1`（桌面默认）编入，`SUBPROCESS=0` 时 `features().subprocess`
+    报 `available:false`。新增 `service/subprocess-service.js`（`.subprocess` owner，
+    stdio 轮询读循环 + 输出上限 + 进程配额）、`js/internal/subprocess-core.js`
+    （owner 客户端 + Node 形 `ChildProcess`）与
+    `js/builtins/{child_process,skyjs/subprocess}.js`（spawn/exec/execFile 与
+    start/stop/isRunning/list；fork 后置）。新增 subprocess / subprocess_switch
+    场景（echo/exit code/stdin/kill/命名进程/程序缺失，及开关两态）。

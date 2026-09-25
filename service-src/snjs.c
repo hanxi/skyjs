@@ -468,8 +468,13 @@ js_features(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
 	JS_SetPropertyStr(ctx, features, "archive",
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+#ifdef USE_SUBPROCESS
+	JS_SetPropertyStr(ctx, features, "subprocess",
+		js_feature(ctx, 1, NULL, NULL));
+#else
 	JS_SetPropertyStr(ctx, features, "subprocess",
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
+#endif
 	JS_SetPropertyStr(ctx, features, "media",
 		js_feature(ctx, 0, "ERR_UNSUPPORTED_PLATFORM", NULL));
 	JS_SetPropertyStr(ctx, features, "tag",
@@ -526,6 +531,9 @@ register_bridge(struct snjs *l) {
 		JS_NewCFunction(l->jsc, js_features, "features", 0));
 
 	register_net_bridge(l->jsc, obj);
+#ifdef USE_SUBPROCESS
+	register_subprocess_bridge(l->jsc, obj);
+#endif
 	{
 		JSValue g = JS_GetGlobalObject(l->jsc);
 		JS_SetPropertyStr(l->jsc, g, "__snjs_drain_jobs",

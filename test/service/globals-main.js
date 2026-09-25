@@ -50,9 +50,21 @@ for (const name of ["io", "httpd", "httpc", "httpInternal", "websocket",
         throw new Error("legacy global still present: " + name);
     }
 }
-const namespaces = Object.keys(skynetcore).sort().join(",");
-if (namespaces !== "crypt,features,fs,net,netpack,runtime,seri") {
-    throw new Error("skynetcore namespace mismatch: " + namespaces);
+// NC0.8 contract: grouped namespaces only. `tls` is OpenSSL-only and
+// `subprocess` is present unless the build sets SUBPROCESS=0.
+const requiredNamespaces = ["crypt", "features", "fs", "net", "netpack",
+    "runtime", "seri"];
+const namespaces = Object.keys(skynetcore).sort();
+for (const name of requiredNamespaces) {
+    if (!namespaces.includes(name)) {
+        throw new Error("missing skynetcore namespace: " + name);
+    }
+}
+const allowed = requiredNamespaces.concat(["tls", "subprocess"]);
+for (const name of namespaces) {
+    if (!allowed.includes(name)) {
+        throw new Error("unexpected skynetcore namespace: " + name);
+    }
 }
 
 skynetcore.runtime.error("GLOBALS_OK events=1 buffer=1 abort=1");
