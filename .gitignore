@@ -11,6 +11,7 @@ test/seri-tool
 node_modules/
 # CJS resolver fixture; keep this synthetic package in-repo.
 !test/service/module-system/node_modules/
+!test/service/node_modules/
 # esbuild-generated JS from the TypeScript example (reproducible via build.sh)
 examples/ts-echo/ts-echo.js
 

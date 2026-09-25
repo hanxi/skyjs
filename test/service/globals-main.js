@@ -1,10 +1,11 @@
 "use strict";
 
 const required = [
-    "global", "process", "console", "Buffer",
+    "global", "process", "console", "Buffer", "Blob", "File",
     "setTimeout", "clearTimeout", "setInterval", "clearInterval",
     "setImmediate", "clearImmediate", "queueMicrotask",
     "TextEncoder", "TextDecoder", "AbortController", "AbortSignal",
+    "URL", "URLSearchParams",
     "skynet",
 ];
 for (const name of required) {

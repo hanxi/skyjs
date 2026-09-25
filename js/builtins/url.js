@@ -3,11 +3,12 @@
 // Node-compatible `url` facade: URLSearchParams re-export plus the legacy
 // parse/format/resolve helpers built on the WHATWG URL implementation.
 
-const urlSearchParams = require("../internal/url-search-params.js");
+const urlCore = require("../internal/url-core.js");
 const querystring = require("./querystring.js");
 const path = require("./path.js");
 
-const URLSearchParams = urlSearchParams.URLSearchParams;
+const URL = urlCore.URL;
+const URLSearchParams = urlCore.URLSearchParams;
 
 function toStr(value) {
     if (value instanceof URL) return value.toString();

@@ -21,6 +21,19 @@ if (typeof globalThis.TextDecoder === "undefined") {
 if (typeof globalThis.Buffer === "undefined") {
     globalThis.Buffer = bufferCore.Buffer;
 }
+if (typeof globalThis.Blob === "undefined") {
+    globalThis.Blob = bufferCore.Blob;
+}
+if (typeof globalThis.File === "undefined") {
+    globalThis.File = bufferCore.File;
+}
+const urlCore = require("./internal/url-core.js");
+if (typeof globalThis.URL === "undefined") {
+    globalThis.URL = urlCore.URL;
+}
+if (typeof globalThis.URLSearchParams === "undefined") {
+    globalThis.URLSearchParams = urlCore.URLSearchParams;
+}
 abort.install();
 eventLoop.install();
 
@@ -55,6 +68,10 @@ function runMain(moduleSystem, entry, param) {
     assertReadyGlobal("TextEncoder");
     assertReadyGlobal("TextDecoder");
     assertReadyGlobal("Buffer");
+    assertReadyGlobal("Blob");
+    assertReadyGlobal("File");
+    assertReadyGlobal("URL");
+    assertReadyGlobal("URLSearchParams");
     assertReadyGlobal("AbortController");
     assertReadyGlobal("AbortSignal");
     assertReadyGlobal("setTimeout");

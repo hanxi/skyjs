@@ -277,8 +277,126 @@ Object.defineProperty(Buffer, "poolSize", {
     configurable: true, enumerable: true, writable: true, value: poolSize,
 });
 
+const constants = Object.freeze({
+    MAX_LENGTH: kMaxLength,
+    MAX_STRING_LENGTH: 0x1fffffe8,
+    MAX_SAFE_INTEGER: 9007199254740991,
+});
+
+// ---- Blob / File (WHATWG subset used by fs.openAsBlob) --------------------
+
+class Blob {
+    constructor(parts, options) {
+        const chunks = [];
+        let size = 0;
+        for (const part of (parts || [])) {
+            let bytes;
+            if (part instanceof Blob) {
+                bytes = new Uint8Array(part._bytes);
+            } else if (typeof part === "string") {
+                bytes = utf8Encoder.encode(part);
+            } else if (part instanceof ArrayBuffer) {
+                bytes = new Uint8Array(part.slice(0));
+            } else if (ArrayBuffer.isView(part)) {
+                bytes = new Uint8Array(part.buffer.slice(
+                    part.byteOffset, part.byteOffset + part.byteLength));
+            } else {
+                bytes = utf8Encoder.encode(String(part));
+            }
+            chunks.push(bytes);
+            size += bytes.length;
+        }
+        this._bytes = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) {
+            this._bytes.set(chunk, offset);
+            offset += chunk.length;
+        }
+        this.size = size;
+        this.type = options && options.type ? String(options.type).toLowerCase() : "";
+    }
+
+    arrayBuffer() {
+        return Promise.resolve(this._bytes.buffer.slice(0));
+    }
+
+    text() {
+        return Promise.resolve(utf8Decoder.decode(this._bytes));
+    }
+
+    bytes() {
+        return Promise.resolve(new Uint8Array(this._bytes));
+    }
+
+    slice(start, end, type) {
+        const from = start === undefined ? 0 : (start < 0 ? Math.max(this.size + start, 0) : Math.min(start, this.size));
+        const to = end === undefined ? this.size : (end < 0 ? Math.max(this.size + end, 0) : Math.min(end, this.size));
+        return new Blob([this._bytes.slice(from, to)], { type: type === undefined ? this.type : type });
+    }
+
+    get [Symbol.toStringTag]() {
+        return "Blob";
+    }
+}
+
+class File extends Blob {
+    constructor(parts, name, options) {
+        super(parts, options);
+        this.name = String(name);
+        this.lastModified = options && options.lastModified !== undefined ?
+            Number(options.lastModified) : Date.now();
+    }
+
+    get [Symbol.toStringTag]() {
+        return "File";
+    }
+}
+
+function transcode() {
+    const err = new Error("buffer.transcode() is not supported (no ICU)");
+    err.code = "ERR_UNSUPPORTED_PLATFORM";
+    err.detail = { skyjsCode: "ERR_UNSUPPORTED_PLATFORM" };
+    throw err;
+}
+
+function isAscii(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    for (const byte of bytes) {
+        if (byte > 0x7f) return false;
+    }
+    return true;
+}
+
+function isUtf8(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    let i = 0;
+    while (i < bytes.length) {
+        const b0 = bytes[i++];
+        let need;
+        let min;
+        let cp;
+        if (b0 < 0x80) { continue; }
+        else if ((b0 & 0xe0) === 0xc0) { need = 1; cp = b0 & 0x1f; min = 0x80; }
+        else if ((b0 & 0xf0) === 0xe0) { need = 2; cp = b0 & 0x0f; min = 0x800; }
+        else if ((b0 & 0xf8) === 0xf0) { need = 3; cp = b0 & 0x07; min = 0x10000; }
+        else { return false; }
+        for (let k = 0; k < need; k++) {
+            if (i >= bytes.length || (bytes[i] & 0xc0) !== 0x80) return false;
+            cp = (cp << 6) | (bytes[i++] & 0x3f);
+        }
+        if (cp < min || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return false;
+    }
+    return true;
+}
+
 module.exports = {
     Buffer,
+    Blob,
+    File,
+    constants,
     kMaxLength,
     poolSize,
+    transcode,
+    isAscii,
+    isUtf8,
 };

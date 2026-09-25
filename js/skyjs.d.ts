@@ -6,3 +6,6 @@
 // declarations are gone too.
 
 /// <reference path="./types/core.d.ts" />
+/// <reference path="./types/buffer.d.ts" />
+/// <reference path="./types/skyjs-log.d.ts" />
+/// <reference path="./types/skyjs-testing.d.ts" />

@@ -285,3 +285,14 @@
     `internal/url-search-params.js`、`os.js`。新增 `tools/run-node-compat.js` 与
     `test/node-compat/{path,querystring,util}.js`：同一用例在 Node 20 与 SkyJS 双跑
     逐项对拍，全部一致；`js/builtins/skyjs/log.js`、`testing.js` 起步。
+33. **Node 兼容层 NC1.3–NC1.6：buffer 入口 / 二进制帧 / node_modules / log+testing**
+    （2026-09-25）：新增 `js/builtins/buffer.js`（`require('buffer')` 与全局
+    `Buffer`/`Blob`/`File` 同源，补 `constants`/`isAscii`/`isUtf8`/`transcode`，
+    `internal/buffer-core.js` 实现 Blob/File）、`js/internal/binary-frame.js`
+    （magic+headerLength+bodyLength 帧，`frameEncode`/`frameDecode`/`FrameDecoder`
+    分帧器）、`js/internal/url-core.js`（QuickJS 缺失的 WHATWG URL）并将
+    `URL`/`URLSearchParams` 挂为全局。`node_modules` 解析经裸名/`@scope`/子路径/
+    `main`/`index.json`/内建优先六项场景验证。新增 `skyjs/log`、`skyjs/testing`
+    内建并接入 `skyjs/testing.writeResult` 的 node-compat 对拍入口（path/
+    querystring/util/url/os 五例双侧一致）。新增 buffer_entry/binary_frame/
+    node_modules 场景与 test/unit 的 binary-frame/url-core 用例。
