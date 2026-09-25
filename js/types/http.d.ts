@@ -1,44 +1,58 @@
-// Split out of js/skyjs.d.ts in NC0.8; module-scoped types for the
-// require()-based runtime surface.
+// `require('http')` / `require('https')` — common subset over internal/http-core.
 
-export interface HttpRequest {
-    method: string;
-    url: string;
-    body: string;
-    code: number;
-    header: Record<string, string | string[]>;
+import { Readable, Writable } from "./stream";
+
+export class IncomingMessage extends Readable {
+    method: string | null;
+    url: string | null;
+    statusCode: number | null;
+    headers: Record<string, string | string[]>;
+    rawHeaders: string[];
+    httpVersion: string;
+    socket: unknown;
 }
 
-export interface HttpResponse {
-    status: number;
-    body: string;
-    header: Record<string, string | string[]>;
+export class ServerResponse extends Writable {
+    statusCode: number;
+    headersSent: boolean;
+    setHeader(name: string, value: string | string[]): this;
+    getHeader(name: string): string | string[] | undefined;
+    removeHeader(name: string): void;
+    writeHead(statusCode: number, statusMessage?: string,
+        headers?: Record<string, string | string[]>): this;
 }
 
-export interface Httpd {
-    readRequest(reader: unknown, bodylimit?: number): Promise<HttpRequest>;
-    writeResponse(write: (data: string | ArrayBuffer) => void, code: number,
-        body: string | (() => string | null), header?: Record<string, string>): void;
+export class Server {
+    listening: boolean;
+    timeout: number;
+    listen(port: number, host?: string, callback?: () => void): this;
+    address(): { address: string; family: string; port: number };
+    close(callback?: () => void): this;
+    setTimeout(ms: number, callback?: () => void): this;
+    on(event: string, listener: (...args: unknown[]) => void): this;
 }
 
-export interface Httpc {
-    request(method: string, hostname: string, url: string,
-        recvHeader?: Record<string, string>, header?: Record<string, string>,
-        body?: string, options?: unknown): Promise<HttpResponse>;
-    get(hostname: string, url: string, recvHeader?: Record<string, string>,
-        header?: Record<string, string>, options?: unknown): Promise<HttpResponse>;
-    post(hostname: string, url: string, form: Record<string, unknown>,
-        recvHeader?: Record<string, string>, options?: unknown): Promise<HttpResponse>;
-    head(hostname: string, url: string, recvHeader?: Record<string, string>,
-        header?: Record<string, string>, options?: unknown): Promise<number>;
-    closeAllKeepalive(): void;
+export interface ClientRequestOptions {
+    hostname?: string;
+    host?: string;
+    port?: number;
+    path?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string | ArrayBuffer | ArrayBufferView;
 }
 
-export interface HttpInternal {
-    recvHeader(reader: unknown): Promise<{ lines: string[]; ok: boolean }>;
-    parseHeader(lines: string[], from: number,
-        header: Record<string, unknown>): Record<string, unknown> | null;
-    recvChunkedBody(...args: unknown[]): Promise<string>;
-    recvBody(...args: unknown[]): Promise<string>;
-    httpStatusMsg(code: number): string;
+export interface ClientResponse {
+    statusCode: number;
+    statusMessage: string;
+    headers: Record<string, string | string[]>;
+    body: Uint8Array;
 }
+
+export function createServer(options?: object,
+    requestListener?: (req: IncomingMessage, res: ServerResponse) => void): Server;
+export function request(options: ClientRequestOptions | string,
+    callback?: () => void): Promise<ClientResponse>;
+export function get(options: ClientRequestOptions | string,
+    callback?: () => void): Promise<ClientResponse>;
+export const STATUS_CODES: Record<number, string>;

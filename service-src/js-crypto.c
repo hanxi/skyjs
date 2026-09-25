@@ -853,6 +853,87 @@ static JSValue js_crypt_dh_secret(JSContext *ctx, JSValueConst tv, int argc, JSV
 }
 
 /* ================================================================
+ * zlib compression (deflate/inflate + gzip)
+ * ================================================================ */
+#include <zlib.h>
+
+/* one-shot helper: which = 0 deflate (zlib), 1 inflate, 2 gzip deflate,
+ * 3 gzip inflate */
+static JSValue
+js_crypt_zlib(JSContext *ctx, JSValueConst tv, int argc, JSValueConst *argv, int which) {
+	(void)tv; (void)argc;
+	size_t in_len = 0;
+	uint8_t *in = JS_GetArrayBuffer(ctx, &in_len, argv[0]);
+	if (!in) return JS_EXCEPTION;
+
+	z_stream strm;
+	memset(&strm, 0, sizeof(strm));
+	int window = (which == 2 || which == 3) ? 15 + 16 : 15;
+	int rc = (which == 0 || which == 2) ?
+		deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, window, 8,
+			Z_DEFAULT_STRATEGY) :
+		inflateInit2(&strm, window);
+	if (rc != Z_OK) return JS_ThrowInternalError(ctx, "zlib init failed: %d", rc);
+
+	size_t cap = in_len > 0 ? in_len : 1;
+	size_t out_cap = which == 0 || which == 2 ? cap + cap / 2 + 64 : cap * 4 + 64;
+	uint8_t *out = skynet_malloc(out_cap);
+	if (!out) {
+		if (which == 0 || which == 2) deflateEnd(&strm); else inflateEnd(&strm);
+		return JS_EXCEPTION;
+	}
+	strm.next_in = in;
+	strm.avail_in = (uInt)in_len;
+	strm.next_out = out;
+	strm.avail_out = (uInt)out_cap;
+
+	for (;;) {
+		rc = (which == 0 || which == 2) ?
+			deflate(&strm, Z_FINISH) : inflate(&strm, Z_NO_FLUSH);
+		if (rc == Z_STREAM_END) break;
+		if (rc != Z_OK && rc != Z_BUF_ERROR) {
+			int bad = rc;
+			(which == 0 || which == 2) ? deflateEnd(&strm) : inflateEnd(&strm);
+			skynet_free(out);
+			return JS_ThrowInternalError(ctx, "zlib failed: %d", bad);
+		}
+		if (strm.avail_out == 0) {
+			size_t used = out_cap;
+			out_cap *= 2;
+			uint8_t *grown = skynet_malloc(out_cap);
+			memcpy(grown, out, used);
+			skynet_free(out);
+			out = grown;
+			strm.next_out = out + used;
+			strm.avail_out = (uInt)(out_cap - used);
+		} else if (which == 1 || which == 3) {
+			/* input exhausted without a stream end: truncated / incomplete */
+			break;
+		} else {
+			break;
+		}
+	}
+	size_t produced = out_cap - strm.avail_out;
+	(which == 0 || which == 2) ? deflateEnd(&strm) : inflateEnd(&strm);
+	JSValue ret = JS_NewArrayBufferCopy(ctx, out, produced);
+	skynet_free(out);
+	return ret;
+}
+
+static JSValue js_crypt_deflate(JSContext *ctx, JSValueConst tv, int argc, JSValueConst *argv) {
+	return js_crypt_zlib(ctx, tv, argc, argv, 0);
+}
+static JSValue js_crypt_inflate(JSContext *ctx, JSValueConst tv, int argc, JSValueConst *argv) {
+	return js_crypt_zlib(ctx, tv, argc, argv, 1);
+}
+static JSValue js_crypt_gzip(JSContext *ctx, JSValueConst tv, int argc, JSValueConst *argv) {
+	return js_crypt_zlib(ctx, tv, argc, argv, 2);
+}
+static JSValue js_crypt_gunzip(JSContext *ctx, JSValueConst tv, int argc, JSValueConst *argv) {
+	return js_crypt_zlib(ctx, tv, argc, argv, 3);
+}
+
+/* ================================================================
  * Registration
  * ================================================================ */
 #ifdef USE_OPENSSL
@@ -890,6 +971,10 @@ void register_crypto_bridge(JSContext *ctx, JSValue global) {
 #ifdef USE_OPENSSL
 	register_openssl_crypto(ctx, crypt);
 #endif
+	JS_SetPropertyStr(ctx,crypt,"deflate",JS_NewCFunction(ctx,js_crypt_deflate,"deflate",1));
+	JS_SetPropertyStr(ctx,crypt,"inflate",JS_NewCFunction(ctx,js_crypt_inflate,"inflate",1));
+	JS_SetPropertyStr(ctx,crypt,"gzip",JS_NewCFunction(ctx,js_crypt_gzip,"gzip",1));
+	JS_SetPropertyStr(ctx,crypt,"gunzip",JS_NewCFunction(ctx,js_crypt_gunzip,"gunzip",1));
 	JS_SetPropertyStr(ctx, skynetcore, "crypt", crypt);
 	JS_FreeValue(ctx, skynetcore);
 }

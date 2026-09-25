@@ -4,7 +4,7 @@
 // by websocket.js.
 //
 // Ported from 3rd/skynet/lualib/http/{internal,httpd,httpc,url}.lua.
-// Builds entirely on BufferedReader (internal/net-helper-core.js): readline() for
+// Builds entirely on BufferedReader (internal/net-core.js): readline() for
 // header lines, read(n) for exact-length body reads.
 (function () {
     "use strict";

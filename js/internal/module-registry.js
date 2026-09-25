@@ -17,6 +17,15 @@ function resolve(request) {
             request : request.slice(3);
         return { id, kind: "internal", fallback: null };
     }
+    if (request === "crypto" || request === "zlib") {
+        return { id: "builtins/" + request, kind: "builtin", fallback: null };
+    }
+    if (request === "http" || request === "https") {
+        return { id: "builtins/" + request, kind: "builtin", fallback: null };
+    }
+    if (request === "net" || request === "tls") {
+        return { id: "builtins/" + request, kind: "builtin", fallback: null };
+    }
     if (request === "child_process") {
         return { id: "builtins/child_process", kind: "builtin", fallback: null };
     }

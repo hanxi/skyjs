@@ -5,7 +5,7 @@ const required = [
     "setTimeout", "clearTimeout", "setInterval", "clearInterval",
     "setImmediate", "clearImmediate", "queueMicrotask",
     "TextEncoder", "TextDecoder", "AbortController", "AbortSignal",
-    "URL", "URLSearchParams",
+    "URL", "URLSearchParams", "fetch", "Headers", "Response", "Request",
     "skynet",
 ];
 for (const name of required) {
@@ -13,8 +13,11 @@ for (const name of required) {
         throw new Error("missing global: " + name);
     }
 }
+// NC4.5: fetch/Headers/Response/Request are present; httpc/httpd/httpInternal
+// and WebSocket/structuredClone must not be.
 for (const name of ["require", "module", "exports", "__filename",
-    "__dirname", "fetch", "WebSocket", "structuredClone"]) {
+    "__dirname", "WebSocket", "structuredClone", "httpc", "httpd",
+    "httpInternal", "sockethelper"]) {
     if (globalThis[name] !== undefined) {
         throw new Error("unexpected global: " + name);
     }

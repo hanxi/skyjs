@@ -3,7 +3,7 @@
 // Usage: ./skyjs examples/chat/config.json
 "use strict";
 
-const sockethelper = require("../../js/internal/net-helper-core.js");
+const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
 const websocket = require("../../js/internal/websocket-core.js");
 const fsx = require("../../js/internal/fs-core.js");

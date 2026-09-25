@@ -328,3 +328,13 @@
     `js/builtins/{child_process,skyjs/subprocess}.js`（spawn/exec/execFile 与
     start/stop/isRunning/list；fork 后置）。新增 subprocess / subprocess_switch
     场景（echo/exit code/stdin/kill/命名进程/程序缺失，及开关两态）。
+37. **Node 兼容层 NC4.1–NC4.5：net/tls/http/https/fetch/crypto/zlib 收口**
+    （2026-09-25）：`require('net')`（`Socket`/`Server`/`connect`/`listen`/`timeout`）
+    与 `require('tls')`（OpenSSL 探测 + `TLSSocket`）、`require('http')`/`https`
+    （`createServer`/`Server`/`IncomingMessage`/`ServerResponse`/`request`/`get`）、
+    全局 `fetch`（与 http facade 共用解析内核）、`require('crypto')` 与
+    `require('zlib')`（zlib 原语编入 `skynetcore.crypt`，`-lz` 链接）。globals 场景
+    收敛为 fetch 已挂、`httpc`/`httpd`/`httpInternal`/`sockethelper` 不再占名。
+    新增 net / http_node / crypto_node 场景。注：把 `net-helper-core.js` 物理并入
+    `net-core.js` 的方案在 socket 生命周期上引入了 double-close 回归，已回退为保留
+    两个 internal 文件，真正的物理合并留作后续（见 docs/TODO.md）。

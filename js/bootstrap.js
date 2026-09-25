@@ -48,6 +48,8 @@ require("./internal/websocket-core.js");
 require("./internal/fs-core.js");
 require("./builtins/skyjs/cluster.js");
 require("./builtins/skyjs/gateserver.js");
+// fetch is a global, not a require() entry (§3).
+require("./builtins/fetch.js").install();
 
 function assertReadyGlobal(name) {
     if (typeof globalThis[name] === "undefined") {
@@ -72,6 +74,7 @@ function runMain(moduleSystem, entry, param) {
     assertReadyGlobal("File");
     assertReadyGlobal("URL");
     assertReadyGlobal("URLSearchParams");
+    assertReadyGlobal("fetch");
     assertReadyGlobal("AbortController");
     assertReadyGlobal("AbortSignal");
     assertReadyGlobal("setTimeout");
