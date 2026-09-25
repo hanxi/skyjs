@@ -342,7 +342,12 @@ NATIVE_FIXTURE := test/native-ext/example-native/libexample-native.dylib
 $(NATIVE_FIXTURE): test/native-ext/example-native/example-native.c include/skyjs-ext.h
 	$(CC) -shared -fPIC -Iinclude -I3rd/quickjs -Wl,-undefined,dynamic_lookup -o $@ $<
 
-test: all test/seri-tool $(NATIVE_FIXTURE)
+NATIVE_PKG_LIB := test/service/node_modules/@skyjs/example-native/libexample-native.dylib
+
+$(NATIVE_PKG_LIB): $(NATIVE_FIXTURE)
+	cp $< $@
+
+test: all test/seri-tool $(NATIVE_FIXTURE) $(NATIVE_PKG_LIB)
 	node tools/gen-module-manifest.js --check
 	node tools/run-tests.js
 

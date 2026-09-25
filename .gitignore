@@ -21,3 +21,5 @@ examples/ts-echo/ts-echo.js
 test/native-ext/**/lib*.dylib
 test/native-ext/**/lib*.so
 test/native-ext/**/*.dll
+# native bridge fixture: copied from the build artifact by make test
+test/service/node_modules/@skyjs/**/lib*example-native.*
