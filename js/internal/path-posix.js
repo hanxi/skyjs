@@ -199,6 +199,33 @@ function relative(from, to) {
     return normalize(up.concat(down).join("/")) || ".";
 }
 
+function parse(value) {
+    checkPath(value);
+    const root = value.startsWith("/") ? "/" : "";
+    const dirPart = dirname(value);
+    let dir = dirPart === "." ? "" : dirPart;
+    let base = root === "/" && value === "/" ? "" : basename(value);
+    const ext = extname(base);
+    const name = ext === "" ? base : base.slice(0, -ext.length);
+    return { root, dir, base, ext, name };
+}
+
+function format(parts) {
+    if (parts === null || typeof parts !== "object") {
+        throw new TypeError("Path must be an object");
+    }
+    const dir = parts.dir || "";
+    if (dir === "") {
+        return parts.base || (parts.name || "") + (parts.ext || "");
+    }
+    const base = parts.base || (parts.name || "") + (parts.ext || "");
+    return dir + "/" + base;
+}
+
+function toNamespacedPath(value) {
+    return value;
+}
+
 function isAbsolute(value) {
     checkPath(value);
     return value.startsWith("/");
@@ -211,6 +238,9 @@ function setCwd(value) {
 
 module.exports = {
     normalize,
+    parse,
+    format,
+    toNamespacedPath,
     join,
     resolve,
     dirname,

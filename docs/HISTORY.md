@@ -276,3 +276,12 @@
     拆为 `js/types/*.d.ts`（core/fs/net/http/crypt/websocket/skyjs）。globals 场景
     断言旧全局不再存在、`skynetcore` 只剩分组命名空间。至此 NC0 出口六项验收全部
     达成（`make test` 两轮全绿）。
+32. **Node 兼容层 NC1.1–NC1.2：错误层与纯 JS 模块**（2026-09-25）：新增
+    `js/internal/errors.js`（`ERRNO` 表、`systemError`/`skyjsError`/`normalizeError`、
+    `systemErrorName`）；Node 面统一 `err.code`/`err.errno`/`err.syscall`/`err.path`
+    + `err.detail.skyjsCode`。新增 `js/builtins/path.js`（共享 `internal/path-posix`，
+    并补齐 `parse`/`format`/`toNamespacedPath` 与 Node 对拍）、`querystring.js`、
+    `util.js`（format/inspect/promisify/callbackify/types）、`url.js`+
+    `internal/url-search-params.js`、`os.js`。新增 `tools/run-node-compat.js` 与
+    `test/node-compat/{path,querystring,util}.js`：同一用例在 Node 20 与 SkyJS 双跑
+    逐项对拍，全部一致；`js/builtins/skyjs/log.js`、`testing.js` 起步。

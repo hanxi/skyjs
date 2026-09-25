@@ -46,7 +46,15 @@ const retiredNames = [
     "snjs_param", "mem_stat", "register_protocol", "set_nodes",
 ].join("|");
 
+// Web-standard constructor names stay verbatim (URL, URLSearchParams, ...).
+const webApiNames = ["URL", "URLSearchParams", "TextEncoder", "TextDecoder",
+    "AbortController", "AbortSignal", "Blob", "File", "EventEmitter"];
+const webApiPattern = "^(?:" + webApiNames.join("|") + ")$";
 const naming = [
+    // Web/Node standard names are external contract (docs/infra/01 §1.1);
+    // list them first so the generic rules below do not rename them.
+    { selector: ["variableLike", "typeLike"], format: null,
+      filter: { regex: webApiPattern, match: true } },
     // variables / functions: lowerCamelCase, optional single leading `_`,
     // double `__` allowed for C contract globals, UPPER_SNAKE constants ok
     { selector: "variableLike", format: ["camelCase", "UPPER_CASE"],

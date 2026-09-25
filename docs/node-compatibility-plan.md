@@ -55,8 +55,8 @@
 | NC0.6 | events / Buffer / abort / text-codec / console | NC0.2、NC0.3 | 已完成 |
 | NC0.7 | 现有库 require 化迁移 | NC0.2–NC0.6 | 已完成 |
 | NC0.8 | NC0 收口 | NC0.1–NC0.7 | 已完成 |
-| NC1.1 | `internal/errors` 错误层 | NC0.8 | 未开始 |
-| NC1.2 | path / util / querystring / url / os + 单测设施 | NC0.8 | 未开始 |
+| NC1.1 | `internal/errors` 错误层 | NC0.8 | 已完成 |
+| NC1.2 | path / util / querystring / url / os + 单测设施 | NC0.8 | 已完成 |
 | NC1.3 | `require('buffer')` + `Blob`/`File` 全局 | NC0.6 | 未开始 |
 | NC1.4 | `internal/binary-frame` | NC1.1 | 未开始 |
 | NC1.5 | 基础 `node_modules` 查找 | NC0.8 | 未开始 |
