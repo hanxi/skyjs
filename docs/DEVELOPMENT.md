@@ -249,7 +249,7 @@ C/JS 边界：注入到 JS 的属性名同样遵守 JS camel 规范（`intComman
   `thread/cpath/bootstrap` 等——配置域契约。
 - 线协议与命令串：skynet 命令（GETENV/SIGNAL/EXIT/REG/NAME/LAUNCH/QUERY/TIMEOUT）、
   cluster 帧（`"node "`、`"req "` 等与 `.clusterd`）。
-- io.js↔ioservice.js RPC op 串（`"read_file"` 等 9 个）与测试验收标记串
+- io.js↔ioservice.js RPC op 串已随 NC2.2 的 `.fs` owner 重构删除（改为 binary-frame envelope）；冻结项收敛为测试验收标记串
   （`"c_echo="`、`"js_mem="` 等）——字符串与方法名解耦，两侧字符串保持一致即可。
 - 算法/架构域名词白名单：`iso7816_4`（ISO 7816-4）、`x86_64` 等保留原名。
 - 旧 snake 名（int_command/gen_id/read_file/write_file 等）与旧连写名
