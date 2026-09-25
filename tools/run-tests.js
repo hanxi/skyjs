@@ -72,6 +72,8 @@ const SUITE = [
         must: ["BUFFER_ENTRY_OK buffer=1 blob=1 file=1"] },
     { name: "binary_frame", config: "test/config-binary-frame.json",
         mustRe: [/BINARY_FRAME_OK bytes=196608 checks=\d+/] },
+    { name: "stream", config: "test/config-stream.json",
+        mustRe: [/STREAM_OK node=1 kernel=1 iterator=1 checks=\d+/] },
     { name: "node_modules", config: "test/config-node-modules.json",
         mustRe: [/NODE_MODULES_OK bare=1 scoped=1 subpath=1 main=1 json=1 builtin=1 checks=\d+/] },
     { name: "echo", config: "test/config-echo.json",

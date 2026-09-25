@@ -296,3 +296,10 @@
     内建并接入 `skyjs/testing.writeResult` 的 node-compat 对拍入口（path/
     querystring/util/url/os 五例双侧一致）。新增 buffer_entry/binary_frame/
     node_modules 场景与 test/unit 的 binary-frame/url-core 用例。
+34. **Node 兼容层 NC2.1：stream 内核与 Node facade**（2026-09-25）：新增
+    `js/internal/stream-core.js`（唯一 credit 流控内核：`readable(source)`/
+    `writable(sink)`/`pipe`，含 backpressure、cancel/abort 传播）与
+    `js/builtins/stream/{index,promises}.js`（Node 类语义 `Readable`/`Writable`/
+    `Duplex`/`Transform`/`PassThrough`/`pipeline`/`finished` + `stream/promises`）。
+    模块表新增 `stream`/`stream/promises` 内建解析。新增 stream 场景与
+    test/unit/stream 用例覆盖 pipeline 顺序、背压、错误传播、取消与 async iterator。

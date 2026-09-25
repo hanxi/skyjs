@@ -17,6 +17,14 @@ function resolve(request) {
             request : request.slice(3);
         return { id, kind: "internal", fallback: null };
     }
+    if (request === "stream" || request.startsWith("stream/")) {
+        // stream/promises lives next to the main facade.
+        return {
+            id: "builtins/stream/" + (request === "stream" ? "index" : request.slice(7)),
+            kind: "builtin",
+            fallback: null,
+        };
+    }
     if (request.startsWith("skyjs/")) {
         return {
             id: "builtins/" + request,

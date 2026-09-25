@@ -61,7 +61,7 @@
 | NC1.4 | `internal/binary-frame` | NC1.1 | 已完成 |
 | NC1.5 | 基础 `node_modules` 查找 | NC0.8 | 已完成 |
 | NC1.6 | `skyjs/log` + `skyjs/testing` | NC0.8 | 已完成 |
-| NC2.1 | `internal/stream-core` + `require('stream')` | NC1.1、NC1.4 | 未开始 |
+| NC2.1 | `internal/stream-core` + `require('stream')` | NC1.1、NC1.4 | 已完成 |
 | NC2.2 | `internal/permission` + `.fs` owner + 二进制通道 | NC1.4 | 未开始 |
 | NC2.3 | `js-io.c` → `js-fs.c` 重构 + 原语扩展 | NC2.2 | 未开始 |
 | NC2.4 | 完整 `fs` facade + `skyjs/fsx` | NC2.1–NC2.3 | 未开始 |
