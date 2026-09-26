@@ -216,47 +216,42 @@ function writeResponse(writeFn, code, reason) {
  * the (now encrypted) socket.
  */
 async function tlsUpgrade(socket, host, isServer, certfile, keyfile, caFile) {
-    // The engine's TLS primitive is exposed on skynetcore.tls; the package only
-    // uses it through this adapter so the facade boundary stays explicit.
-    const tls = skynetcore.tls;
-    if (!tls) throw new Error("WSS requires OpenSSL build (make TLS=openssl)");
-    tls.init();
-    const ctx = tls.ctxNew(!!isServer);
-    if (isServer && certfile && keyfile) tls.ctxSetCert(ctx, certfile, keyfile);
-    if (!isServer) tls.ctxSetVerify(ctx, caFile || undefined);
-    const session = tls.newtls(isServer ? "server" : "client", ctx,
-        host || undefined);
-    socket._tlsSession = session;
-    socket._tlsCtx = ctx;
+    // Only the public tls facade is used here (node-compatibility §16.4.1).
+    const tls = require("tls");
+    const session = await tls.upgrade(socket, {
+        host,
+        isServer: !!isServer,
+        cert: certfile,
+        key: keyfile,
+        ca: caFile,
+    });
+    socket._tlsSession = session.session;
+    socket._tlsCtx = session.ctx;
 
     const reader = makeReader(socket);
     const origOnData = reader.onData.bind(reader);
     const origWrite = reader.write.bind(reader);
 
+    // Plaintext out -> encrypt -> raw socket; encrypted in -> decrypt -> reader.
     reader.write = function (data) {
         const buffer = typeof data === "string"
             ? new TextEncoder().encode(data).buffer
             : (data instanceof ArrayBuffer ? data
                 : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
-        const encrypted = tls.write(session, buffer);
-        if (encrypted) origWrite(encrypted);
+        session.write(buffer);
     };
 
-    const initial = tls.handshake(session);
-    if (initial) origWrite(initial);
-
-    if (!tls.finished(session)) {
+    if (!session.finished()) {
         await new Promise((resolve, reject) => {
             reader.onData = function (encrypted) {
                 try {
-                    const out = tls.handshake(session, encrypted);
-                    if (out) origWrite(out);
-                    if (tls.finished(session)) {
+                    session.handshake(encrypted);
+                    if (session.finished()) {
                         reader.onData = function (encData) {
-                            const plaintext = tls.read(session, encData);
+                            const plaintext = session.read(encData);
                             if (plaintext && plaintext.byteLength > 0) origOnData(plaintext);
                         };
-                        const leftover = tls.read(session);
+                        const leftover = session.read();
                         if (leftover && leftover.byteLength > 0) origOnData(leftover);
                         resolve();
                     }
@@ -267,7 +262,7 @@ async function tlsUpgrade(socket, host, isServer, certfile, keyfile, caFile) {
         });
     } else {
         reader.onData = function (encData) {
-            const plaintext = tls.read(session, encData);
+            const plaintext = session.read(encData);
             if (plaintext && plaintext.byteLength > 0) origOnData(plaintext);
         };
     }

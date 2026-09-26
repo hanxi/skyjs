@@ -367,3 +367,18 @@
     改为 Node 语义的 `net.Socket`（`socket.id` 为连接标识）；`net` facade 补
     `Socket.id`。测试与示例改用 `require('skyjs/websocket')`。链路验证覆盖默认
     构建与 `TLS=openssl` 构建（WSS 全绿）。
+41. **packages/ 收口门禁落地**（2026-09-26）：新增
+    `tools/check-packages-boundary.js`（接入 `make test`），按 §16.4.1/§10 检查四件事：
+    (A) `packages/<name>` 目录名与 `package.json#name` 一致、不遮蔽引擎内建
+    `skyjs/*` 入口；(B) 包内不得 `require('js/internal/*')`、不得直接引用
+    `skynetcore.*`（硬规则 1）；(C) `js/` 下不得 require 仅存在于包中的
+    `skyjs/<name>` 或 `packages/` 路径（硬规则 2）；(D) 临时隐藏 `packages/` 后跑
+    `test/config-engine-only.json`，"删掉 packages/ 引擎仍能自验证"必须成立。
+    配套新增引擎自验证场景（18 个层 1 模块 + 7 个引擎内建入口）。门禁即时抓到
+    2 处真实越界：`@skyjs/websocket` 直接使用 `skynetcore.tls` 与
+    `skynetcore.runtime.error`，已通过给 `tls` facade 补公开的
+    `upgrade(socket, opts)`/`isAvailable()` 与改用 `skyjs/log` 修复；另修
+    `subprocess-core` 误用 `stream.EventEmitter`（facade 不导出）导致
+    `child_process` 在无 packages/ 环境下加载失败。正/负用例均已实测（注入越界
+    即 FAIL，恢复即 OK），并在临时副本上验证删除 `packages/` 后引擎仍能
+    `make` 构建。

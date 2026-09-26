@@ -101,11 +101,72 @@ const rootCertificates = [];
 const DEFAULT_MIN_VERSION = "TLSv1.2";
 const DEFAULT_MAX_VERSION = "TLSv1.3";
 
+/**
+ * Upgrade an already-established net.Socket to TLS. This is the public surface
+ * packages use for protocol upgrades (e.g. @skyjs/websocket WSS) instead of
+ * reaching for the L1 skynetcore.tls primitive (node-compatibility §16.4.1).
+ *
+ * @param {net.Socket} socket   established plaintext connection
+ * @param {object} options      { host?, isServer?, cert?, key?, ca? }
+ * @returns {Promise<{ session, ctx, write, read, finished, handshake }>}
+ *   a thin handle around the TLS session; `write(plain)` encrypts and sends,
+ *   `read(encrypted)` decrypts.
+ */
+async function upgrade(socket, options) {
+    const opts = options || {};
+    if (!tlsAvailable()) {
+        throw errors.skyjsError("ERR_UNSUPPORTED_PLATFORM",
+            "tls requires an OpenSSL build (make TLS=openssl)");
+    }
+    const tls = skynetcore.tls;
+    tls.init();
+    const isServer = !!opts.isServer;
+    const ctx = tls.ctxNew(isServer);
+    if (isServer && opts.cert && opts.key) tls.ctxSetCert(ctx, opts.cert, opts.key);
+    if (!isServer) tls.ctxSetVerify(ctx, opts.ca || undefined);
+    const session = tls.newtls(isServer ? "server" : "client", ctx,
+        opts.host || undefined);
+
+    const writeRaw = (data) => {
+        if (typeof data === "string") socket.write(data);
+        else socket.write(Buffer.from(data));
+    };
+    writeRaw(tls.handshake(session) || new ArrayBuffer(0));
+
+    return {
+        session,
+        ctx,
+        raw: writeRaw,
+        /** Encrypt `plain` (string | ArrayBuffer) and flush it to the socket. */
+        write(plain) {
+            const buffer = typeof plain === "string"
+                ? Buffer.from(plain, "utf8")
+                : (plain instanceof ArrayBuffer ? Buffer.from(plain)
+                    : Buffer.from(plain));
+            const encrypted = tls.write(session,
+                buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+            if (encrypted) writeRaw(encrypted);
+        },
+        handshake(encrypted) {
+            const out = tls.handshake(session, encrypted);
+            if (out) writeRaw(out);
+            return out;
+        },
+        /** Decrypt one encrypted chunk; returns ArrayBuffer or null. */
+        read(encrypted) {
+            return tls.read(session, encrypted);
+        },
+        finished() { return tls.finished(session); },
+    };
+}
+
 module.exports = {
     TLSSocket,
     connect,
     createServer,
     createSecureContext: (options) => ({ context: options || {} }),
+    upgrade,
+    isAvailable: tlsAvailable,
     rootCertificates,
     DEFAULT_MIN_VERSION,
     DEFAULT_MAX_VERSION,

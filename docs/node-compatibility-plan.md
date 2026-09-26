@@ -425,7 +425,10 @@ Node；取消后无孤儿进程；移动端构建验证开关。
 | `@skyjs/media` / `@skyjs/tag` | `fs`/`db`/包内 C 桥 | 独立大线（[infra/08-media-tag.md](infra/08-media-tag.md)），不排 NC 批次 |
 
 收口标准：**删掉 `packages/` 整个目录后，引擎仍能构建、启动、跑通层 1 模块与 8 个
-内建入口的自验证用例**（§16.4.1）。
+内建入口的自验证用例**（§16.4.1）。该标准由 `tools/check-packages-boundary.js`
+（已接入 `make test`）自动校验：布局、包纯净度（不得 require `js/internal/*` 或
+直接引用 `skynetcore.*`）、引擎独立性（`js/` 不得依赖包），以及隐藏 `packages/`
+后的引擎自验证（`test/config-engine-only.json`）。
 
 ## 11. 横切事项
 

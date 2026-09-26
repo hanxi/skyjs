@@ -347,6 +347,7 @@ $(NATIVE_PKG_LIB): $(NATIVE_FIXTURE)
 
 test: all test/seri-tool $(NATIVE_FIXTURE) $(NATIVE_PKG_LIB)
 	node tools/gen-module-manifest.js --check
+	node tools/check-packages-boundary.js
 	node tools/run-tests.js
 
 # one-command interop acceptance against the stock Lua skynet node:

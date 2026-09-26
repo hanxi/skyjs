@@ -21,6 +21,7 @@
     // skyjs/crypt entry; adapters use the Node `crypto` facade for digests.
     const crypto = require("skyjs/crypt");
     const adapters = require("./adapters.js");
+    const log = require("skyjs/log");
     const SOCKET_ERROR = adapters.SOCKET_ERROR;
     const netConnect = adapters.netConnect;
     const makeReader = adapters.makeReader;
@@ -226,7 +227,8 @@
             else f(ws.id);
         } catch (e) {
             if (e === SOCKET_ERROR) throw e;
-            skynetcore.runtime.error("websocket handler." + method + " error: " + (e && e.stack || e));
+            log.error({ msg: "websocket handler." + method + " error",
+                detail: (e && e.stack) || String(e) });
         }
     }
 
@@ -549,7 +551,8 @@
         }
 
         if (protocol === "wss") {
-            if (!skynetcore.tls) {
+            const tlsFacade = require("tls");
+            if (!tlsFacade.isAvailable()) {
                 socket.destroy();
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"
@@ -615,7 +618,8 @@
         let reader = makeReader(socket);
 
         if (parsed.protocol === "wss") {
-            if (!skynetcore.tls) {
+            const tlsFacade = require("tls");
+            if (!tlsFacade.isAvailable()) {
                 socket.destroy();
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"

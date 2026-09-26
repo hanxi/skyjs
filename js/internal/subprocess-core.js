@@ -5,6 +5,7 @@
 
 const frame = require("./binary-frame.js");
 const stream = require("../builtins/stream/index.js");
+const { EventEmitter } = require("../builtins/events.js");
 const skynetCore = require("./skynet-core.js");
 const errors = require("./errors.js");
 
@@ -37,7 +38,7 @@ async function call(header, body) {
     return { header: replyHeader, body: replyBody };
 }
 
-class ChildProcess extends stream.EventEmitter {
+class ChildProcess extends EventEmitter {
     constructor(pid, opts) {
         super();
         this.pid = pid;
