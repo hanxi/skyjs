@@ -3,9 +3,9 @@
 // with TLS). Responds to "text" protocol for port discovery and conn_count.
 "use strict";
 
-const sockethelper = require("../../js/internal/net-core.js");
-const socket = require("../../js/internal/net-core.js");
-const websocket = require("../../js/internal/websocket-core.js");
+const netCore = require("../../js/internal/net-core.js");
+const net = require("net");
+const websocket = require("skyjs/websocket");
 const httpCore = require("../../js/internal/http-core.js");
 const httpd = httpCore.httpd;
 const httpc = httpCore.httpc;
@@ -19,11 +19,11 @@ let connCount = 0;
 
 function handleHttps(fd, addr) {
     connCount++;
-    const reader = sockethelper.reader(fd);
+    const reader = netCore.reader(fd);
 
     skynet.fork(async () => {
         try {
-            await sockethelper.tlsUpgrade(reader, null, true,
+            await netCore.tlsUpgrade(reader, null, true,
                 "test/certs/server.pem", "test/certs/server.key");
 
             const writeFn = (data) => reader.write(data);
@@ -72,19 +72,21 @@ const wssHandler = {
 };
 
 skynet.start(() => {
-    socket.listen("127.0.0.1", HTTPS_PORT, handleHttps);
+    netCore.listen("127.0.0.1", HTTPS_PORT, handleHttps);
     console.log("TLS_HTTPS listening on " + HTTPS_PORT);
 
-    socket.listen("127.0.0.1", WSS_PORT, (fd, addr) => {
+    const wssServer = net.createServer((socket) => {
         skynet.fork(async () => {
-            await websocket.accept(fd, wssHandler, "wss", addr, {
-                tls: {
-                    certfile: "test/certs/server.pem",
-                    keyfile: "test/certs/server.key",
-                },
-            });
+            await websocket.accept(socket, wssHandler, "wss",
+                socket.remoteAddress, {
+                    tls: {
+                        certfile: "test/certs/server.pem",
+                        keyfile: "test/certs/server.key",
+                    },
+                });
         });
     });
+    wssServer.listen(WSS_PORT, "127.0.0.1");
     console.log("TLS_WSS listening on " + WSS_PORT);
 
     skynet.dispatch("text", (msg) => {

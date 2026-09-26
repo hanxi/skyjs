@@ -36,9 +36,10 @@ class Socket extends EventEmitter {
         this.remotePort = options.port | 0;
         this.remoteAddress = options.host || "127.0.0.1";
         this.connecting = true;
-        const fd = netCore.socket.connect(this.remoteAddress, this.remotePort, () => {
+        const fd = netCore.connect(this.remoteAddress, this.remotePort, () => {
             this.connecting = false;
             this._fd = fd;
+            this.id = fd;
             this.emit("connect");
             this._armTimeout();
             this._pump();
@@ -66,7 +67,7 @@ class Socket extends EventEmitter {
     }
 
     _pump() {
-        netCore.socket.start(this._fd, (data) => {
+        netCore.start(this._fd, (data) => {
             this._refreshTimeout();
             const chunk = data instanceof ArrayBuffer ? Buffer.from(data) : Buffer.from(String(data));
             this.emit("data", chunk);
@@ -78,7 +79,7 @@ class Socket extends EventEmitter {
         }, (_id, message) => {
             this.emit("error", errors.skyjsError("ERR_IO", "socket error: " + message));
         }, { binary: true });
-        netCore.socket.resume(this._fd);
+        netCore.resume(this._fd);
     }
 
     write(data, encoding, callback) {
@@ -90,7 +91,7 @@ class Socket extends EventEmitter {
         }
         this._refreshTimeout();
         const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, encoding);
-        const n = netCore.socket.write(this._fd, payload);
+        const n = netCore.write(this._fd, payload);
         if (cb) cb();
         return n >= 0;
     }
@@ -113,8 +114,8 @@ class Socket extends EventEmitter {
     }
 
     setNoDelay(on) {
-        if (on !== false && typeof netCore.socket.nodelay === "function") {
-            netCore.socket.nodelay(this._fd);
+        if (on !== false && typeof netCore.nodelay === "function") {
+            netCore.nodelay(this._fd);
         }
         return this;
     }
@@ -131,7 +132,7 @@ class Socket extends EventEmitter {
         if (this.destroyed) return this;
         this.destroyed = true;
         if (this._timeoutId !== null) { clearTimeout(this._timeoutId); this._timeoutId = null; }
-        try { netCore.socket.close(this._fd); } catch (_) { /* ignore */ }
+        try { netCore.close(this._fd); } catch (_) { /* ignore */ }
         if (err) this.emit("error", err);
         this.emit("close", !!err);
         return this;
@@ -166,10 +167,11 @@ class Server extends EventEmitter {
         else options = {};
         if (callback) this.once("listening", callback);
 
-        this._fd = netCore.socket.listen(options.host || "0.0.0.0",
+        this._fd = netCore.listen(options.host || "0.0.0.0",
             options.port | 0, (connId, addr) => {
                 const socket = new Socket();
                 socket._fd = connId;
+                socket.id = connId;
                 socket.remoteAddress = addr || "";
                 this._connections++;
                 this.emit("connection", socket);
@@ -186,7 +188,7 @@ class Server extends EventEmitter {
 
     close(callback) {
         if (callback) this.once("close", callback);
-        try { netCore.socket.close(this._fd); } catch (_) { /* ignore */ }
+        try { netCore.close(this._fd); } catch (_) { /* ignore */ }
         this.listening = false;
         this.emit("close");
         return this;

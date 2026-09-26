@@ -6,7 +6,7 @@
 const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
 const crypt = require("../../js/internal/crypt-core.js");
-const websocket = require("../../js/internal/websocket-core.js");
+const websocket = require("skyjs/websocket");
 
 let failCount = 0;
 const decoder = new TextDecoder();

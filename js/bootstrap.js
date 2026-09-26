@@ -43,7 +43,6 @@ require("./internal/skynet-core.js");
 require("./internal/net-core.js");
 require("./internal/crypt-core.js");
 require("./internal/http-core.js");
-require("./internal/websocket-core.js");
 require("./internal/fs-core.js");
 require("./builtins/skyjs/cluster.js");
 require("./builtins/skyjs/gateserver.js");

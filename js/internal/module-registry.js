@@ -43,10 +43,15 @@ function resolve(request) {
         };
     }
     if (request.startsWith("skyjs/")) {
+        const name = request.slice("skyjs/".length);
+        // Engine-internal entry first (builtins/skyjs/<name>); when the engine
+        // does not provide it, fall back to the workspace package, then to an
+        // installed node_modules/@skyjs/<name> (node-compatibility §3.1).
         return {
             id: "builtins/" + request,
             kind: "builtin",
-            fallback: "@skyjs/" + request.slice(7),
+            fallback: "@skyjs/" + name,
+            fallbackDirs: ["packages/" + name, "node_modules/@skyjs/" + name],
         };
     }
     if (request.startsWith("./") || request.startsWith("../") ||

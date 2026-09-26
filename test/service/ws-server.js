@@ -3,15 +3,15 @@
 // Special message "close_me" triggers a server-initiated close.
 "use strict";
 
-const socket = require("../../js/internal/net-core.js");
-const websocket = require("../../js/internal/websocket-core.js");
+const net = require("net");
+const websocket = require("skyjs/websocket");
 
 const PORT = 18870;
 
 skynet.start(() => {
-    socket.listen("127.0.0.1", PORT, (fd, addr) => {
+    const server = net.createServer((socket) => {
         skynet.fork(() => {
-            return websocket.accept(fd, {
+            return websocket.accept(socket, {
                 message(id, data, opcode) {
                     // decode text to check for special commands
                     if (opcode === "text") {
@@ -27,9 +27,10 @@ skynet.start(() => {
                 close(id, code, reason) {
                     // normal close — nothing to do
                 },
-            }, "ws", addr);
+            }, "ws", socket.remoteAddress);
         });
     });
+    server.listen(PORT, "127.0.0.1");
     console.log("WS_ECHO listening on " + PORT);
 
     skynet.dispatch("text", (msg) => {

@@ -5,7 +5,7 @@
 
 const sockethelper = require("../../js/internal/net-core.js");
 const socket = require("../../js/internal/net-core.js");
-const websocket = require("../../js/internal/websocket-core.js");
+const websocket = require("skyjs/websocket");
 const fsx = require("../../js/internal/fs-core.js");
 const httpCore = require("../../js/internal/http-core.js");
 const httpd = httpCore.httpd;

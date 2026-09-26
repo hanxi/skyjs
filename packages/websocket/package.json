@@ -1,0 +1,13 @@
+{
+  "name": "@skyjs/websocket",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebSocket server/client for SkyJS, built on the public net/http/stream facade",
+  "main": "index.js",
+  "peerDependencies": {
+    "skyjs": "^0.1.0"
+  },
+  "skyjs": {
+    "entry": "skyjs/websocket"
+  }
+}

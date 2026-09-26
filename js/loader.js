@@ -171,6 +171,14 @@
         if (entry !== null) {
             const found = tryEngineModule(entry.id);
             if (found !== null) return found.filename;
+            // Workspace packages first (packages/<name>), then installed
+            // node_modules/@skyjs/<name> (node-compatibility §3.1, §16.4.3).
+            if (Array.isArray(entry.fallbackDirs)) {
+                for (const dir of entry.fallbackDirs) {
+                    const candidate = tryPathOrDirectory(pathPosix.resolve(cwd, dir));
+                    if (candidate !== null) return candidate.filename;
+                }
+            }
             if (entry.fallback === null || entry.fallback === undefined) {
                 throw notFound(request);
             }

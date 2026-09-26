@@ -3,7 +3,10 @@
 "use strict";
 
 const crypt = require("../../js/internal/crypt-core.js");
-const websocket = require("../../js/internal/websocket-core.js");
+const websocket = require("skyjs/websocket");
+// httpc is the internal HTTP client over the same core as the `http` facade;
+// the legacy global was removed in NC4.5.
+const httpc = require("../../js/internal/http-core.js").httpc;
 
 let failCount = 0;
 

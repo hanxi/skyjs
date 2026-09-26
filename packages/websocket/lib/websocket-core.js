@@ -1,27 +1,35 @@
-// skyjs WebSocket server + client (Task 7, RFC 6455).
-// Shared core behind the legacy global and the future require('websocket')
-// facade. Reuses internal/http-core.js for the HTTP upgrade handshake.
+// @skyjs/websocket -- RFC 6455 server + client (SkyJS package).
 //
-// Ported from 3rd/skynet/lualib/http/websocket.lua. Reuses
-// http_internal.recv_header / parse_header for the HTTP upgrade handshake.
-// Frame masking uses crypt.xor_str (C-layer, hot path).
+// Built only on the public facades: require('net') for connection lifecycle,
+// require('stream') for buffered reads, require('crypto') for the handshake
+// digest / frame masking. It never requires js/internal/* so the package can be
+// installed and versioned independently of the engine (node-compatibility
+// §16.4.1, ND-33).
 //
 // Two usage modes:
-//   Handler mode (server): websocket.accept(fd, handler, "ws", addr)
-//   Manual mode  (client): websocket.connect("ws://...") → id
+//   Handler mode (server): accept(socket, handler, "ws", addr)
+//   Manual mode  (client): connect("ws://...") -> id
 (function () {
     "use strict";
 
     const GLOBAL_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     const MAX_FRAME_SIZE = 256 * 1024;   // 256 KB
 
-    const textCodec = require("./text-codec.js");
-    const crypt = require("./crypt-core.js");
-    const netCore = require("./net-core.js");
-    const netHelper = require("./net-core.js");
-    const httpCore = require("./http-core.js");
-    const textEncoder = new textCodec.TextEncoder();
-    const textDecoder = new textCodec.TextDecoder("utf-8");
+    const net = require("net");
+    const stream = require("stream");
+    // SkyJS crypt primitives (sha1/base64/xorStr/randomkey) via the public
+    // skyjs/crypt entry; adapters use the Node `crypto` facade for digests.
+    const crypto = require("skyjs/crypt");
+    const adapters = require("./adapters.js");
+    const SOCKET_ERROR = adapters.SOCKET_ERROR;
+    const netConnect = adapters.netConnect;
+    const makeReader = adapters.makeReader;
+    const tlsUpgrade = adapters.tlsUpgrade;
+    const recvHeader = adapters.recvHeader;
+    const parseHeader = adapters.parseHeader;
+    const writeResponse = adapters.writeResponse;
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder("utf-8");
 
     // ---- opcode tables (name↔value) ----
 
@@ -77,7 +85,7 @@
         wsPool.delete(ws.id);
         if (!ws.closed) {
             ws.closed = true;
-            try { netCore.close(ws.fd); } catch (_) { /* ignore */ }
+            try { ws.socket.destroy(); } catch (_) { /* ignore */ }
         }
     }
 
@@ -140,7 +148,7 @@
             hdr[off + 2] = mk[2];
             hdr[off + 3] = mk[3];
             // XOR payload with mask key (C-layer xor_str for performance)
-            payload = crypt.xorStr(payload, maskingKey);
+            payload = crypto.xorStr(payload, maskingKey);
         }
 
         writeFn(hdr.buffer);
@@ -181,7 +189,7 @@
             : new ArrayBuffer(0);
 
         if (maskingKey) {
-            payload = crypt.xorStr(payload, maskingKey);
+            payload = crypto.xorStr(payload, maskingKey);
         }
 
         const name = opName[op];
@@ -217,7 +225,7 @@
             else if (a1 !== undefined) f(ws.id, a1);
             else f(ws.id);
         } catch (e) {
-            if (e === netHelper.socketError) throw e;
+            if (e === SOCKET_ERROR) throw e;
             skynetcore.runtime.error("websocket handler." + method + " error: " + (e && e.stack || e));
         }
     }
@@ -231,7 +239,7 @@
             header = upgradeOps.header;
             url = upgradeOps.url;
         } else {
-            const hdr = await httpCore.httpInternal.recvHeader(ws.reader);
+            const hdr = await recvHeader(ws.reader);
             if (!hdr.ok) return { code: 413 };
             if (hdr.lines.length === 0) return { code: 400 };
 
@@ -252,7 +260,7 @@
                 return { code: 505 };
             }
 
-            header = httpCore.httpInternal.parseHeader(hdr.lines, 1, {});
+            header = parseHeader(hdr.lines, 1, {});
         }
 
         if (!header) return { code: 400 };
@@ -277,7 +285,7 @@
         if (!swKey) {
             return { code: 400, reason: "Sec-WebSocket-Key Required" };
         }
-        const rawKey = crypt.base64Decode(swKey);
+        const rawKey = crypto.base64Decode(swKey);
         if (rawKey.byteLength !== 16) {
             return { code: 400, reason: "Sec-WebSocket-Key invalid" };
         }
@@ -301,8 +309,8 @@
         ws.realIp = header["x-real-ip"] || null;
 
         // generate Sec-WebSocket-Accept and send 101
-        const accept = crypt.base64Encode(
-            crypt.sha1(swKey + GLOBAL_GUID)
+        const accept = crypto.base64Encode(
+            crypto.sha1(swKey + GLOBAL_GUID)
         );
         const resp = "HTTP/1.1 101 Switching Protocols\r\n" +
             "Upgrade: websocket\r\n" +
@@ -318,13 +326,13 @@
     // ---- client handshake (write_handshake) ----
 
     async function writeHandshake(ws, host, url, header) {
-        // 16-byte random key: two 8-byte crypt.randomkey() concatenated
-        const rk1 = crypt.randomkey();
-        const rk2 = crypt.randomkey();
+        // 16-byte random key: two 8-byte crypto.randomkey() concatenated
+        const rk1 = crypto.randomkey();
+        const rk2 = crypto.randomkey();
         const keyBuf = new Uint8Array(16);
         keyBuf.set(new Uint8Array(rk1), 0);
         keyBuf.set(new Uint8Array(rk2), 8);
-        const key = crypt.base64Encode(keyBuf.buffer);
+        const key = crypto.base64Encode(keyBuf.buffer);
 
         const reqHdr = {
             "Upgrade": "websocket",
@@ -350,7 +358,7 @@
         ws.reader.write(req);
 
         // read 101 response
-        const hdr = await httpCore.httpInternal.recvHeader(ws.reader);
+        const hdr = await recvHeader(ws.reader);
         if (!hdr.ok || hdr.lines.length === 0) {
             throw new Error("websocket handshake: recv header failed");
         }
@@ -367,7 +375,7 @@
             );
         }
 
-        const recvHdr = httpCore.httpInternal.parseHeader(hdr.lines, 1, {});
+        const recvHdr = parseHeader(hdr.lines, 1, {});
         if (!recvHdr) {
             throw new Error(
                 "websocket handshake: invalid response header"
@@ -395,8 +403,8 @@
             );
         }
 
-        const expected = crypt.base64Encode(
-            crypt.sha1(key + GLOBAL_GUID)
+        const expected = crypto.base64Encode(
+            crypto.sha1(key + GLOBAL_GUID)
         );
         if (swAccept !== expected) {
             throw new Error(
@@ -416,7 +424,7 @@
         if (hs.code !== null) {
             // handshake failed: send HTTP error response
             const wf = function (d) { ws.reader.write(d); };
-            httpCore.httpd.writeResponse(wf, hs.code, hs.reason || "");
+            writeResponse(wf, hs.code, hs.reason || "");
             tryHandle(ws, "close");
             return;
         }
@@ -519,7 +527,7 @@
     const wsApi = {};
 
     /**
-     * Server entry: accept a WebSocket connection on `fd`.
+     * Server entry: accept a WebSocket connection on a net.Socket.
      *   handler: { connect?, handshake?, message, ping?, pong?,
      *              close?, error?, warning? }
      *   protocol: "ws" (default) | "wss"
@@ -527,7 +535,7 @@
      *   options.reader: existing BufferedReader to reuse
      * Returns Promise<boolean>.
      */
-    wsApi.accept = async function (fd, handler, protocol, addr,
+    wsApi.accept = async function (socket, handler, protocol, addr,
         options) {
         protocol = protocol || "ws";
 
@@ -537,43 +545,43 @@
         if (options && options.reader) {
             reader = options.reader;
         } else {
-            reader = netHelper.reader(fd);
+            reader = makeReader(socket);
         }
 
         if (protocol === "wss") {
             if (!skynetcore.tls) {
-                netCore.close(fd);
+                socket.destroy();
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"
                 );
             }
             const tlsOpts = (options && options.tls) || {};
             if (!tlsOpts.certfile || !tlsOpts.keyfile) {
-                netCore.close(fd);
+                socket.destroy();
                 throw new Error(
                     "WSS server requires options.tls.certfile and options.tls.keyfile"
                 );
             }
-            await netHelper.tlsUpgrade(
-                reader, null, true, tlsOpts.certfile, tlsOpts.keyfile
+            reader = await tlsUpgrade(
+                socket, null, true, tlsOpts.certfile, tlsOpts.keyfile
             );
         }
 
         const ws = {
-            id: fd, fd: fd, reader: reader,
+            id: socket.id, socket, reader,
             mode: "server", handle: handler,
             addr: addr || "", realIp: null, closed: false,
         };
-        wsPool.set(fd, ws);
+        wsPool.set(socket.id, ws);
 
         try {
             await resolveAccept(ws, options);
         } catch (e) {
-            const closed = isWsClosed(fd);
+            const closed = isWsClosed(socket.id);
             if (!closed) {
                 closeWebsocket(ws);
             }
-            if (e === netHelper.socketError) {
+            if (e === SOCKET_ERROR) {
                 if (closed) {
                     tryHandle(ws, "close");
                 } else {
@@ -585,7 +593,7 @@
             return true;
         }
 
-        if (!isWsClosed(fd)) {
+        if (isWsClosed(socket.id)) {
             closeWebsocket(ws);
         }
         return true;
@@ -596,35 +604,35 @@
      *   url: "ws://host:port/path" or "wss://..."
      *   header: extra headers object (optional)
      *   timeout: connect timeout in centiseconds (optional)
-     * Returns Promise<id> (the fd).
+     * Returns Promise<id> (the socket id).
      */
     wsApi.connect = async function (url, header, timeout, options) {
         const parsed = parseWsUrl(url);
 
-        const fd = await netHelper.connectAsync(
+        const socket = await netConnect(
             parsed.hostAddr, parsed.hostPort, timeout
         );
-        const reader = netHelper.reader(fd);
+        let reader = makeReader(socket);
 
         if (parsed.protocol === "wss") {
             if (!skynetcore.tls) {
-                netCore.close(fd);
+                socket.destroy();
                 throw new Error(
                     "WSS requires OpenSSL build (make TLS=openssl)"
                 );
             }
             const ca = (options && options.caFile) || undefined;
-            await netHelper.tlsUpgrade(
-                reader, parsed.hostname, false, null, null, ca
+            reader = await tlsUpgrade(
+                socket, parsed.hostname, false, null, null, ca
             );
         }
 
         const ws = {
-            id: fd, fd: fd, reader: reader,
+            id: socket.id, socket, reader,
             mode: "client", handle: null,
             addr: parsed.host, realIp: null, closed: false,
         };
-        wsPool.set(fd, ws);
+        wsPool.set(socket.id, ws);
 
         try {
             await writeHandshake(
@@ -635,7 +643,7 @@
             throw e;
         }
 
-        return fd;
+        return socket.id;
     };
 
     /**
@@ -667,7 +675,7 @@
             if (frame.opcode === "ping") {
                 // auto-respond with pong (masking for client only)
                 const mk = ws.mode === "client"
-                    ? crypt.randomBytes(4) : null;
+                    ? crypto.randomBytes(4) : null;
                 writeFrame(
                     function (d) { ws.reader.write(d); },
                     "pong", frame.payload, mk
@@ -719,7 +727,7 @@
         }
         const payload = toAb(data);
         const mk = ws.mode === "client"
-            ? crypt.randomBytes(4) : null;
+            ? crypto.randomBytes(4) : null;
         writeFrame(
             function (d) { ws.reader.write(d); }, fmt, payload, mk
         );
@@ -730,7 +738,7 @@
         const ws = wsPool.get(id);
         if (!ws) throw new Error("websocket: invalid id " + id);
         const mk = ws.mode === "client"
-            ? crypt.randomBytes(4) : null;
+            ? crypto.randomBytes(4) : null;
         writeFrame(
             function (d) { ws.reader.write(d); }, "ping", null, mk
         );
@@ -753,7 +761,7 @@
                 payload = buf;
             }
             const mk = ws.mode === "client"
-                ? crypt.randomBytes(4) : null;
+                ? crypto.randomBytes(4) : null;
             writeFrame(
                 function (d) { ws.reader.write(d); },
                 "close", payload, mk

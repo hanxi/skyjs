@@ -359,3 +359,11 @@
     随后 `socket.close` 二次释放触发 `socket_server.c dec_sending_ref` 断言；
     已修正为 `connectAsync`。`http-core`/`websocket-core`/示例/测试的引用与
     Makefile 接线同步收敛，socket/gate/http/ws/tls/cluster 全量回归通过。
+40. **PKG-1 `@skyjs/websocket` 出包**（2026-09-26）：websocket 实现从引擎
+    `js/internal/websocket-core.js` 迁到 `packages/websocket/`，只依赖公开
+    `net`/`stream`/`skyjs/crypt` facade（新增 `lib/adapters.js` 提供 BufferedReader
+    与 TLS upgrade 适配），引擎内过渡件删除。loader 的 `skyjs/*` 解析新增
+    `packages/<name>` → `node_modules/@skyjs/<name>` 回退。`accept()`/`connect()`
+    改为 Node 语义的 `net.Socket`（`socket.id` 为连接标识）；`net` facade 补
+    `Socket.id`。测试与示例改用 `require('skyjs/websocket')`。链路验证覆盖默认
+    构建与 `TLS=openssl` 构建（WSS 全绿）。

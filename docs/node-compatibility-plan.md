@@ -77,7 +77,7 @@
 | NC5.1 | `js-native.c` 装载原语 | 可选 | 已完成 |
 | NC5.2 | `internal/native-loader` + `extpath` + `skyjs.native` | NC5.1 | 已完成 |
 | NC5.3 | 静态注册表 + 示例扩展 | NC5.2 | 已完成 |
-| PKG-* | 8 个 `@skyjs/*` 包逐个搬出 | NC2 起，见 §10 | 未开始 |
+| PKG-* | 8 个 `@skyjs/*` 包逐个搬出 | NC2 起，见 §10 | 进行中（websocket 已出包） |
 
 与 [infra/15-roadmap-estimates.md](infra/15-roadmap-estimates.md) 估算批次的映射：NC0+NC1 ≈ B0（模块系统/事件循环底座）；NC2 ≈ B1
 （core-runtime 的 fs 部分）；NC3/NC4 ≈ B3/B4（网络、子进程、crypto）；包批次 ≈
